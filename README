@@ -1,0 +1,19 @@
+OLXDown is a web crawler / web scraper / grabber for site http://olx.ua/.
+OLXDown is a part of mach bigger machine learning project which learns from advertisements grabbed from olx.ua.
+It is created for learning purposes only !!!
+
+PURPOSE:
+Unfortunately existing GitHub projects for scraping olx.ua are very slow.
+So I decided to write my own scraper that would benefit from scala and akka multitasking allowing to download ads with much better performance.
+The key difference from other scrapers is that it allows you to download several advertisements simultaneously.
+What program actually does - it scraps ads and save them into `down` folder. This folder must exist before you run the app !
+Storage format is JSON text.
+
+COMPILE:
+    (1) Install Scala Build Tool. http://sbt.org
+    (2) CD to project folder. Where build.sbt file is located. Run sbt run
+
+Usage:
+
+
+

@@ -1,0 +1,67 @@
+<configuration>
+    <appender name="SCRAPED" class="ch.qos.logback.core.FileAppender">
+        <file>scraped.json</file>
+        <param name="immediateFlush" value="true"/>
+        <append>false</append>
+        <encoder>
+            <pattern>\n%msg,\n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ALL-SCRAPED" class="ch.qos.logback.core.FileAppender">
+        <file>all_scraped.json</file>
+        <param name="immediateFlush" value="true"/>
+        <append>true</append>
+        <encoder>
+            <pattern>\n%msg,\n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="LOGFILE" class="ch.qos.logback.core.FileAppender">
+        <file>olx.log</file>
+        <append>false</append>
+        <param name="immediateFlush" value="true"/>
+        <encoder>
+            <pattern>%level %logger{0} %date - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <param name="immediateFlush" value="true"/>
+        <encoder>
+            <pattern>%level %logger{0} %date - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="SIFT" class="ch.qos.logback.classic.sift.SiftingAppender">
+        <!-- in the absence of the class attribute, it is assumed that the
+             desired discriminator type is
+             ch.qos.logback.classic.sift.MDCBasedDiscriminator -->
+        <discriminator>
+            <key>savePath</key>
+            <defaultValue>default</defaultValue>
+        </discriminator>
+        <sift>
+            <appender name="FILE-${userid}" class="ch.qos.logback.core.FileAppender">
+                <file>${savePath}.log</file>
+                <append>true</append>
+                <!--<append>false</append>-->
+                <param name="immediateFlush" value="true"/>
+                <layout class="ch.qos.logback.classic.PatternLayout">
+                    <pattern>\n%msg,\n</pattern>
+                </layout>
+            </appender>
+        </sift>
+    </appender>
+
+    <logger name="SCRAP" level="INFO">
+        <appender-ref ref="SCRAPED" />
+        <appender-ref ref="ALL-SCRAPED" />
+        <appender-ref ref="SIFT" />
+    </logger>
+
+    <root name="ROOT" level="INFO">
+        <appender-ref ref="LOGFILE" />
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
