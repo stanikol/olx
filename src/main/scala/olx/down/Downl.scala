@@ -49,8 +49,8 @@ class Downl extends Actor {
           url = u
           (u, fetchAdvUrls(_, _))
       }
-      sender_ ! Try(fetchData(link, ws)).recoverWith({case error: Throwable => Success(Error(url, error))}).get
-      println(s"${self.path.name} received finished $command")
+      sender_ ! Try(fetchData(link, ws)).recoverWith({case error: Throwable => Success(Error(url, error.getMessage))}).get
+      println(s"${self.path.name} finished command $command")
   }
 
 
@@ -90,8 +90,10 @@ class Downl extends Actor {
 //        "scraped"  -> DateTime.now().toString("yyyy-MM-dd HHmmss")
 //      )
 //    )
+    val siteid = """(?:Номер объявления\:\s*)(\d+)""".r.findFirstMatchIn(soup.select("span:matches((Добавлено|Опубликовано с мобильного))").head.text()).get.group(1)
     var items: Map[String,String] = Map(
-        "siteid"   -> soup.select("span:contains(Номер объявления:) > span > span").last().text(),
+//        "siteid"   -> soup.select("span:contains(Номер объявления:) > span > span").last().text(),
+        "siteid"   -> siteid,
         "brief"    -> soup.select("table:contains(Объявление от) > tbody > tr > td").map(_.text).mkString("\n"),
         "head"     -> soup.select(".offerheadinner h1").head.text(),
         "text"     -> soup.select("#textContent").head.text(),
@@ -121,8 +123,11 @@ class Downl extends Actor {
                 val splt = phone.splitAt(phone.length / 2)
                 splt._1 + "\n" + splt._2
               } else phone
-            }.filter(_.length > 7).mkString("\n")
-        items = items.updated("phones", phones)
+            }.filter(_.length >= 7).mkString("\n")
+        if(wSResponse.body != "Извините, страница не найдена")
+          items = items.updated("phones", phones)
+        else
+          items = items.updated("phones", "#no-phone")
         Adv(items)
       }
     Await.result(advF, Cfg.kill_actor_when_no_response)

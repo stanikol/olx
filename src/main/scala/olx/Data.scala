@@ -117,9 +117,11 @@ object Adv extends Data {
 //      case NonFatal(error) =>
 //        log.error(s"Can't click `.contactitem` on $url\n${error.getMessage}")
 //    }
+    val id = parseUserID(url)
     val adv = Adv(
       Map(
         "siteid"   -> xpath("//span[contains(text(),'Номер объявления:')]/span[last()]"),
+//        "userid"   -> id,
         "brief"    -> xpath("//table[contains(., 'Объявление от')]"),
         "text"     -> {css(".offerheadinner h1") + "\n" + css("#textContent")},
         "added"    -> xpath("//span[contains(.,'Добавлено') or contains(.,'Опубликовано с мобильного')]"),
@@ -138,7 +140,6 @@ object Adv extends Data {
     )
     // TODO phones ! Часто два кототких телефона сливаются в один напр: 705-05-05 444-54-09 превращаются в 70505054445409. Tелефоны не разделены \n !!
     if(adv.items("phones").contains("x") || adv.items("phones").isEmpty){
-      val id = parseUserID(url)
       webDriver.get(s"http://olx.ua/ajax/misc/contact/phone/$id/white/")
       val response: String = (parse(webDriver.findElement(By.xpath("//pre")).getText) \ "value") match {
         case JString(s) => s; case _ => "" }
@@ -167,9 +168,15 @@ object Adv extends Data {
           override def accept(dir: File, name: String): Boolean = name.endsWith(".log")})
       logFilesInDir.flatMap { f => readFromFile(f).get }.toStream
     } else {
+      println(s"Reading ${file.getName}")
       val txt = scala.io.Source.fromFile(file).getLines().mkString("\n").dropRight(1)
+      val filename = file.getName
       parse("["+txt+"]").extract[List[Map[String, String]]].map{ items =>
-        Adv(items.updated("url", stripURL(items.getOrElse("url",""))))
+        val itemsWithUrl = items.updated("url", stripURL(items.getOrElse("url","")))
+        Adv(
+          if(items.keys.contains("filename"))  itemsWithUrl
+          else itemsWithUrl.updated("filename", filename)
+        )
       }.toStream
     }
     println(s"${result.length} ads are read from ${file.getAbsolutePath}")
@@ -178,6 +185,8 @@ object Adv extends Data {
     //    log.error(s"\n#ERROR Adv.apply(${file.getAbsoluteFile}):\n\t" + error.getMessage)
     Failure(error)
   }
+
+  def readDB = readFromFile().get
 
 def parseUserID(url:String): String =
   """http://.*ID(.*?).html""".r.findFirstMatchIn(stripURL(url)).get.group(1)
@@ -192,4 +201,4 @@ def parseTimeAdded(addedStr:String): DateTime = {
 
 }
 
-case class Error(url: String, error: Throwable) extends Data
+case class Error(url: String, error: String) extends Data

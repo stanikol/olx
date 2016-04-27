@@ -8,6 +8,7 @@ package olx.down
 object WSDown {
 
   import akka.actor._
+  import akka.pattern.ask
   import olx.Cfg
 
   import scala.concurrent.ExecutionContext
@@ -33,12 +34,9 @@ object WSDown {
       val actorSystem = ActorSystem("olxDownloaders")
       val downMan = actorSystem.actorOf(Props(classOf[DownMan], target), name = "DownMan")
       println(Cfg.target)
-    downMan ! DownMan.Download(url)
 
-      actorSystem.scheduler.scheduleOnce(Cfg.terminate_after){
-        actorSystem.terminate }
-
-
+    val f = ask(downMan, DownMan.DownloadUrl(url))(Cfg.terminate_after)
+    while (!f.isCompleted){}
 
     }
 

@@ -1,15 +1,11 @@
 package olx.down
 
 import akka.actor.{Actor, ActorRef, Props, Terminated}
-import akka.pattern.ask
-import akka.util.Timeout
 import olx.down.DownMan.{JobPoolItem, Tick}
 import olx._
 import org.joda.time.{DateTime, Period}
 import org.joda.time.format.PeriodFormatterBuilder
 import org.slf4j.{LoggerFactory, MDC}
-import play.api.libs.ws.ahc.AhcWSClient
-import play.api.libs.ws.{WSClient, WSResponse}
 
 import scala.collection.mutable.{Set => MutebleSet}
 import scala.concurrent.{Await, Future}
@@ -20,7 +16,8 @@ import scala.util.{Failure, Success, Try}
   */
 object DownMan {
   case class Tick()
-  case class Download(url: String)
+  case class DownloadUrl(url: String)
+  case class DownloadUrls(urls: Stream[String])
   case class JobPoolItem(actorRef: ActorRef, url: Option[String])
 }
 
@@ -47,15 +44,23 @@ class DownMan(target: String) extends Actor {
   val storedLinks = MutebleSet.empty[String]
   val errorLinks = MutebleSet.empty[String]
   val visitedPages = MutebleSet.empty[String]
+  var masterActor: ActorRef = _
 
   var nextPageRetry: Int = 3
 
   private val startTime: DateTime = DateTime.now()
 
   override def receive: Receive = {
-    case DownMan.Download(url) =>
+    case DownMan.DownloadUrl(url) =>
+      masterActor = sender()
       println(s"$target -> $url")
       nextPage = Some(url)
+      self ! Tick()
+    case DownMan.DownloadUrls(urls) =>
+      masterActor = sender()
+      println(s"$target -> ${urls.length}")
+      newLinks ++= urls
+      nextPage = None
       self ! Tick()
     case Tick() =>
       println(
@@ -72,7 +77,7 @@ class DownMan(target: String) extends Actor {
       offerToFetchAds
       import context.dispatcher
       if((nextPage.isEmpty  && jobPool.forall(_.url.isEmpty) && newLinks.isEmpty ) | nextPageRetry <= 0)
-        context.system.terminate()
+        masterActor ! "Done"
 
       context.system.scheduler.scheduleOnce(Cfg.sleep_time) {
         self ! Tick()
@@ -89,13 +94,37 @@ class DownMan(target: String) extends Actor {
       saveAdvLogger.info(adv.toString())
       offerToFetchAds
 
+    case advUrls @ AdvUrls(urls, nextPg) =>
+      val sender_ = sender()
+      val newFoundLinks = urls.filter(url =>
+        !(newLinks.contains(url) || storedLinks.contains(url) ||
+          fetchedLinks.contains(url) || errorLinks.contains(url))
+      )
+      println(s"${newFoundLinks.length} new links from ${urls.length} are found on ${nextPage.get}")
+      println(s"nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  ${visitedPages.contains(nextPage.get)}")
+      visitedPages += nextPage.get
+      newLinks ++= newFoundLinks
+      nextPage = nextPg
+      val jobPoolItem = jobPool.find(_.actorRef == sender_).get
+      jobPool -= jobPoolItem
+      if(newFoundLinks.length == 0 && nextPage.isDefined) {
+        jobPoolItem.actorRef ! Downl.FetchAdvUrls(nextPage.get)
+        jobPool += jobPoolItem.copy(url=nextPage)
+      } else {
+        jobPool += jobPoolItem.copy(url=None)
+      }
+//      fetchedLinks += nextPage.get
+//      self ! Tick()
+
+
+
     case Error(url, error) =>
       val sender_ = sender()
       val jobPoolItem = jobPool.find(_.actorRef == sender_).get
       jobPool -= jobPoolItem
       jobPool += jobPoolItem.copy(url=None)
       errorLinks += url
-      println(s"${sender_.path.name} got error with $url: ${error.getMessage}")
+      println(s"${sender_.path.name} got error with $url: ${error}")
       offerToFetchAds
 
     case Terminated(actor) =>
@@ -107,30 +136,38 @@ class DownMan(target: String) extends Actor {
 
   private def fetchNextLinksIfReady: Unit = {
 //    val jobPoolIsFree = jobPool.filter(_.url.isDefined).isEmpty
-    if(nextPage.isDefined && jobPool.filter(_.url.isDefined).isEmpty && newLinks.isEmpty) do {
+    if(!visitedPages.contains(nextPage.getOrElse("")) && jobPool.filter(_.url.isDefined).isEmpty && newLinks.isEmpty) {
       val pageUrl = nextPage.get
       println("Going to fetch "+pageUrl)
-      implicit val timeout: Timeout = Cfg.kill_actor_when_no_response
-      val advUrlsFuture: Future[AdvUrls] = { jobPool.head.actorRef ? Downl.FetchAdvUrls(pageUrl)  }.mapTo[AdvUrls]
-      val advUrlsTry: Try[AdvUrls] = Try(Await.result(advUrlsFuture, Cfg.kill_actor_when_no_response))
-      advUrlsTry match {
-        case Success(AdvUrls(links:List[String], nxtPage: Option[String])) =>
-          val newFoundLinks = links.filter(url => !(storedLinks ++ fetchedLinks ++ errorLinks ++ newLinks).contains(url))
-          if( nxtPage.isEmpty || visitedPages.contains(pageUrl) ){
-            nextPageRetry -= 1
-          } else {
-            nextPage = nxtPage
-            if(nextPage.isDefined && !visitedPages.contains(nextPage.get))
-              nextPageRetry = 3
-          }
-          newLinks ++= newFoundLinks
-          visitedPages += pageUrl
-          println(s"${newFoundLinks.length} new links from ${links.length} are found on $pageUrl")
-          println(s"nextPage = ${nextPage.getOrElse("None")} nextPageRetry = $nextPageRetry  ${visitedPages.contains(pageUrl)}")
-        case Failure(error: Throwable) =>
-          println("Error while fetching "+pageUrl)
-      }
-    }while(nextPage.isDefined  && jobPool.filter(_.url.isDefined).isEmpty && newLinks.isEmpty && nextPageRetry > 0)
+      val freeJob = jobPool.head
+      jobPool -= freeJob
+      jobPool += freeJob.copy(url=Some(pageUrl))
+      freeJob.actorRef ! Downl.FetchAdvUrls(pageUrl)
+    }
+//      do {
+//      val pageUrl = nextPage.get
+//      println("Going to fetch "+pageUrl)
+////      implicit val timeout: Timeout = Cfg.kill_actor_when_no_response
+////      val advUrlsFuture: Future[AdvUrls] = { jobPool.head.actorRef ? Downl.FetchAdvUrls(pageUrl)  }.mapTo[AdvUrls]
+////      val advUrlsTry: Try[AdvUrls] = Try(Await.result(advUrlsFuture, Cfg.kill_actor_when_no_response))
+////      advUrlsTry match {
+////        case Success(AdvUrls(links:List[String], nxtPage: Option[String])) =>
+////          val newFoundLinks = links.filter(url => !(storedLinks ++ fetchedLinks ++ errorLinks ++ newLinks).contains(url))
+////          if( nxtPage.isEmpty || visitedPages.contains(pageUrl) ){
+////            nextPageRetry -= 1
+////          } else {
+////            nextPage = nxtPage
+////            if(nextPage.isDefined && !visitedPages.contains(nextPage.get))
+////              nextPageRetry = 3
+////          }
+////          newLinks ++= newFoundLinks
+////          visitedPages += pageUrl
+////          println(s"${newFoundLinks.length} new links from ${links.length} are found on $pageUrl")
+////          println(s"nextPage = ${nextPage.getOrElse("None")} nextPageRetry = $nextPageRetry  ${visitedPages.contains(pageUrl)}")
+////        case Failure(error: Throwable) =>
+////          println("Error while fetching "+pageUrl)
+////      }
+//    }while(nextPage.isDefined  && jobPool.filter(_.url.isDefined).isEmpty && newLinks.isEmpty && nextPageRetry > 0)
   }
 
   private def offerToFetchAds: Unit = {
