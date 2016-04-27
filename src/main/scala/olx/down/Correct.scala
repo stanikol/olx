@@ -14,7 +14,7 @@ import scala.collection.JavaConversions._
 /**
   * Created by stanikol on 27.04.16.
   */
-object Correct  extends App {
+object Correct  extends  {
 
 
 //  val ads = olx.Adv.readDB
@@ -26,11 +26,10 @@ object Correct  extends App {
     new File(target).mkdirs()
     val ads = olx.Adv.readFromFile(src).get
 
-
     new FileWriter(dst) {
       for {ad <- ads.toList} {
         val badItems = ad.items.filter(m => !List("href","user").contains(m._1) && m._2.isEmpty).keys
-        val newAd = if (badItems.nonEmpty) {
+        val updatedAd: Adv = if (badItems.nonEmpty) {
           println(s"Found invalid keys in ${ad.url}: $badItems")
           val f = ask(dl, Downl.FetchAdv(ad.url))(11 seconds).mapTo[Adv]
           Try(Await.result(f, 11 seconds)) match {
@@ -41,36 +40,35 @@ object Correct  extends App {
               newAd
             case _ =>
               println(s"Error ${ad.url}")
-  //            Error(ad.url, "")
               ad
           }
-        } else {
-          ad
-        }
-        newAd match {
-          case ad @ Adv(_) => write(ad + ",\n")
-          case _ =>
-        }
+        } else { ad }
+        write(updatedAd + ",\n")
       }
       close()
     }
-}
-
-
-  val actorSystem = ActorSystem("olxDownloaders")
-  val dl = actorSystem.actorOf(Props(classOf[Downl]), name = "DL")
-  implicit val ec = ExecutionContext.Implicits.global
-
-  val srcDir = new File("/Users/snc/scala/olx/down/")
-  val srcFiles = srcDir.list(new FilenameFilter {
-    override def accept(dir: File, name: String): Boolean = name.endsWith(".log")
-  }).toList.map(s=> new File("/Users/snc/scala/olx/down/", s))
-
-  srcFiles.foreach{ file=>
-    println(file.getAbsolutePath)
-    correctFile(file, dl)
   }
-  println(s"Done.")
+
+
+  def main(args: Array[String]): Unit = {
+
+    val actorSystem = ActorSystem("olxDownloaders")
+    val dl = actorSystem.actorOf(Props(classOf[Downl]), name = "DL")
+    implicit val ec = ExecutionContext.Implicits.global
+
+    val srcDir = new File("/Users/snc/scala/olx/down/")
+    val srcFiles = srcDir.list(new FilenameFilter {
+      override def accept(dir: File, name: String): Boolean = name.endsWith(".log")
+    }).toList.map(s=> new File("/Users/snc/scala/olx/down/", s))
+
+    srcFiles.foreach{ file=>
+      println(file.getAbsolutePath)
+      correctFile(file, dl)
+    }
+    println(s"Done.")
+  }
+
+
 
 
 

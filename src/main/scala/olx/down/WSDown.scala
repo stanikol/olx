@@ -33,10 +33,9 @@ object WSDown {
 
       val actorSystem = ActorSystem("olxDownloaders")
       val downMan = actorSystem.actorOf(Props(classOf[DownMan], target), name = "DownMan")
-      println(Cfg.target)
 
-    val f = ask(downMan, DownMan.DownloadUrl(url))(Cfg.terminate_after)
-    while (!f.isCompleted){}
+      val f = ask(downMan, DownMan.DownloadUrl(url))(Cfg.terminate_after)
+      while(!f.isCompleted){}
 
     }
 
