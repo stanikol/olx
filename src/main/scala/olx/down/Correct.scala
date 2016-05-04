@@ -4,18 +4,16 @@ import java.io.{File, FileWriter, FilenameFilter}
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.pattern.ask
-import olx.{Adv, Cfg, Data, Error}
+import olx.Adv
 
-import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
-import scala.util.{Success, Try}
-import scala.collection.JavaConversions._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by stanikol on 27.04.16.
   */
 object Correct  extends  {
-
+  implicit val ec = ExecutionContext.Implicits.global
 
 //  val ads = olx.Adv.readDB
 
@@ -26,27 +24,21 @@ object Correct  extends  {
     new File(target).mkdirs()
     val ads = olx.Adv.readFromFile(src).get
 
-    new FileWriter(dst) {
+
       for {ad <- ads.toList} {
-        val badItems = ad.items.filter(m => !List("href","user").contains(m._1) && m._2.isEmpty).keys
-        val updatedAd: Adv = if (badItems.nonEmpty) {
-          println(s"Found invalid keys in ${ad.url}: $badItems")
-          val f = ask(dl, Downl.FetchAdv(ad.url))(11 seconds).mapTo[Adv]
-          Try(Await.result(f, 11 seconds)) match {
-            case Success(newAd: Adv) =>
-              println(s"Finished $newAd")
-              val er = newAd.items.filter(m => m._1 != "user" && m._2.isEmpty)
-              assert(er.isEmpty, er.toString)
-              newAd
-            case _ =>
-              println(s"Error ${ad.url}")
-              ad
+        val badItems = ad.items.filter{ case (k,v) => !List("href","user").contains(k) && v.isEmpty }.keys
+        val updatedAdFuture: Future[Adv] =
+          if (badItems.nonEmpty) {
+            println(s"Found invalid keys in ${ad.url}: $badItems")
+            ask(dl, Downl.FetchAdv(ad.url))(55 seconds).mapTo[Adv]
+          } else { Future.successful(ad) }
+        updatedAdFuture.onSuccess { case updatedAd =>
+          new FileWriter(dst, true) {
+            write(updatedAd + ",\n")
+            close()
           }
-        } else { ad }
-        write(updatedAd + ",\n")
+        }
       }
-      close()
-    }
   }
 
 
@@ -54,7 +46,7 @@ object Correct  extends  {
 
     val actorSystem = ActorSystem("olxDownloaders")
     val dl = actorSystem.actorOf(Props(classOf[Downl]), name = "DL")
-    implicit val ec = ExecutionContext.Implicits.global
+
 
     val srcDir = new File("/Users/snc/scala/olx/down/")
     val srcFiles = srcDir.list(new FilenameFilter {

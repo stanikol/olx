@@ -1,33 +1,36 @@
 package olx.down
 
 import akka.actor.{Actor, ActorRef, Props, Terminated}
-import olx.down.DownMan.{JobPoolItem, Tick}
 import olx._
-import org.joda.time.{DateTime, Period}
+import olx.down.DownMan.{JobPoolItem, Tick}
 import org.joda.time.format.PeriodFormatterBuilder
+import org.joda.time.{DateTime, Period}
 import org.slf4j.{LoggerFactory, MDC}
 
 import scala.collection.mutable.{Set => MutebleSet}
-import scala.concurrent.{Await, Future}
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 /**
   * Created by stanikol on 21.04.16.
   */
 object DownMan {
   case class Tick()
-  case class DownloadUrl(url: String)
-  case class DownloadUrls(urls: Stream[String])
-  case class JobPoolItem(actorRef: ActorRef, url: Option[String])
+  case class DownloadUrl(url: String, target: String)
+  case class DownloadUrls(urls: Stream[String], target: String)
+  case class JobPoolItem(actorRef: ActorRef, url: Option[String]) {
+    def isFree = url.isEmpty
+    def isBusy = url.isDefined
+  }
 }
 
 
-class DownMan(target: String) extends Actor {
+class DownMan extends Actor {
 
+  var target: String = "Default"
   val jobPool = MutebleSet.empty[JobPoolItem]
 
   private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
-  private val savePath: String = s"${Cfg.savedir.getAbsolutePath}/$target " +
+  private def savePath: String = s"${Cfg.savedir.getAbsolutePath}/$target " +
     DateTime.now().toString(Cfg.save_path_time_suffix)
 
   override def preStart = {
@@ -43,7 +46,7 @@ class DownMan(target: String) extends Actor {
   val fetchedLinks = MutebleSet.empty[String]
   val storedLinks = MutebleSet.empty[String]
   val errorLinks = MutebleSet.empty[String]
-  val visitedPages = MutebleSet.empty[String]
+  var visitedPages = MutebleSet.empty[String]
   var masterActor: ActorRef = _
 
   var nextPageRetry: Int = 3
@@ -51,32 +54,40 @@ class DownMan(target: String) extends Actor {
   private val startTime: DateTime = DateTime.now()
 
   override def receive: Receive = {
-    case DownMan.DownloadUrl(url) =>
+    case DownMan.DownloadUrl(url, target_) =>
       masterActor = sender()
+      target = target_
       println(s"$target -> $url")
       nextPage = Some(url)
+      nextPageRetry = 3
+      visitedPages = MutebleSet.empty[String]
       self ! Tick()
-    case DownMan.DownloadUrls(urls) =>
+    case DownMan.DownloadUrls(urls, target_) =>
       masterActor = sender()
+      target = target_
       println(s"$target -> ${urls.length}")
       newLinks ++= urls
       nextPage = None
+      nextPageRetry = 3
+      visitedPages = MutebleSet.empty[String]
       self ! Tick()
     case Tick() =>
       println(
         s"""
            |Info: Time elapsed $timeElapsed - ~ $timeFor1Adv for 1 adv
+           |target = $target
            |newLinks = ${newLinks.toList.length}
            |fetchedLinks = ${fetchedLinks.toList.length}
            |errorLinks = ${errorLinks.toList.length}
            |nextPage = ${nextPage.getOrElse("None")}
            |nextPageRetry = ${nextPageRetry}
-           |jobPool = ${jobPool.filter(_.url.isEmpty).toList.length} free of ${jobPool.toList.length}
+           |jobPool = ${jobPool.filter(_.isFree).toList.length} free of ${jobPool.toList.length}
+           |jobPoolURLs = ${jobPool.filter(_.isBusy).map(_.url.get).mkString(", ")}
          """.stripMargin)
       fetchNextLinksIfReady
       offerToFetchAds
       import context.dispatcher
-      if((nextPage.isEmpty  && jobPool.forall(_.url.isEmpty) && newLinks.isEmpty ) | nextPageRetry <= 0)
+      if((nextPage.isEmpty  && jobPool.forall(_.isFree) && newLinks.isEmpty ) | nextPageRetry <= 0)
         masterActor ! "Done"
 
       context.system.scheduler.scheduleOnce(Cfg.sleep_time) {
@@ -90,9 +101,11 @@ class DownMan(target: String) extends Actor {
       jobPool -= jobPoolItem
       jobPool += jobPoolItem.copy(url=None)
       fetchedLinks += url
+
       MDC.put("savePath", savePath)
       saveAdvLogger.info(adv.toString())
       offerToFetchAds
+      fetchNextLinksIfReady
 
     case advUrls @ AdvUrls(urls, nextPg) =>
       val sender_ = sender()
@@ -100,19 +113,22 @@ class DownMan(target: String) extends Actor {
         !(newLinks.contains(url) || storedLinks.contains(url) ||
           fetchedLinks.contains(url) || errorLinks.contains(url))
       )
-      println(s"${newFoundLinks.length} new links from ${urls.length} are found on ${nextPage.get}")
-      println(s"nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  ${visitedPages.contains(nextPage.get)}")
+      println(s"$target ${newFoundLinks.length} new links from ${urls.length} are found on ${nextPage.get}")
+      println(s"$target nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  ${visitedPages.contains(nextPage.get)}")
+      if( visitedPages.contains(nextPg.getOrElse("")) ) nextPageRetry -= 1
       visitedPages += nextPage.get
       newLinks ++= newFoundLinks
       nextPage = nextPg
       val jobPoolItem = jobPool.find(_.actorRef == sender_).get
       jobPool -= jobPoolItem
-      if(newFoundLinks.length == 0 && nextPage.isDefined) {
+      if(newFoundLinks.length == 0 && nextPage.isDefined && nextPageRetry >= 0) {
         jobPoolItem.actorRef ! Downl.FetchAdvUrls(nextPage.get)
         jobPool += jobPoolItem.copy(url=nextPage)
       } else {
         jobPool += jobPoolItem.copy(url=None)
       }
+//      fetchNextLinksIfReady
+      offerToFetchAds
 //      fetchedLinks += nextPage.get
 //      self ! Tick()
 
@@ -124,7 +140,7 @@ class DownMan(target: String) extends Actor {
       jobPool -= jobPoolItem
       jobPool += jobPoolItem.copy(url=None)
       errorLinks += url
-      println(s"${sender_.path.name} got error with $url: ${error}")
+      println(s"$target ${sender_.path.name} got error with $url: ${error}")
       offerToFetchAds
 
     case Terminated(actor) =>
@@ -135,10 +151,10 @@ class DownMan(target: String) extends Actor {
   }
 
   private def fetchNextLinksIfReady: Unit = {
-//    val jobPoolIsFree = jobPool.filter(_.url.isDefined).isEmpty
-    if(!visitedPages.contains(nextPage.getOrElse("")) && nextPage.isDefined && jobPool.filter(_.url.isDefined).isEmpty && newLinks.isEmpty) {
+    if(!visitedPages.contains(nextPage.getOrElse("")) && nextPage.isDefined && jobPool.forall(_.isFree)
+                                        && newLinks.isEmpty && nextPageRetry > 0) {
       val pageUrl = nextPage.get
-      println("Going to fetch "+pageUrl)
+      println(s"$target Going to fetch "+pageUrl)
       val freeJob = jobPool.head
       jobPool -= freeJob
       jobPool += freeJob.copy(url=Some(pageUrl))
@@ -147,7 +163,7 @@ class DownMan(target: String) extends Actor {
   }
 
   private def offerToFetchAds: Unit = {
-    var freeJob = jobPool.find(_.url.isEmpty)
+    var freeJob = jobPool.find(_.isFree)
     while(freeJob.isDefined && newLinks.nonEmpty){
       val url = newLinks.head
       newLinks -= url

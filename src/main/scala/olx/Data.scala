@@ -107,18 +107,36 @@ object Adv extends Data {
   implicit val jsonFormats = org.json4s.DefaultFormats
 
   def apply(url: String)(implicit webDriver: WebDriver): Adv = {
+
+    def getPhones(id:String): String = {
+      // TODO phones ! Часто два кототких телефона сливаются в один напр: 705-05-05 444-54-09 превращаются в 70505054445409. Tелефоны не разделены \n !!
+      webDriver.get(s"http://olx.ua/ajax/misc/contact/phone/$id/white/")
+      val response: String = (parse(webDriver.findElement(By.xpath("//pre")).getText) \ "value") match {
+        case JString(s) => s; case _ => "" }
+      val phones = """([\d\(\)\-\s\+]+)""".r
+        .findAllMatchIn(response)
+        .map{ mo =>
+          val phone = """[\(\)\-\s\+]+""".r.replaceAllIn(mo.group(1), "")
+          if(phone.length > 12) { // if two phones has been concatenated as it said in TODO
+          val splt = phone.splitAt(phone.length/2)
+            splt._1 +"\n"+splt._2
+          } else phone
+        }.filter(_.length>7).mkString("\n")
+      phones
+    }
+
+    def getSkype(id:String): String = {
+      webDriver.get(s"http://olx.ua/ajax/misc/contact/skype/$id/")
+      val skype: String = (parse(webDriver.findElement(By.xpath("//pre")).getText) \ "value") match {
+        case JString(s) => s; case _ => "" }
+      println(s"Skype = $skype")
+      skype
+    }
+
+
     webDriver.get(url)
-//    try {
-//      val contact = webDriver.findElement(By.className("contactitem"))
-//      if (contact != null) contact.click()
-////      if (contact != null) contact.click()
-////      Thread.sleep(1000)
-//    } catch {
-//      case NonFatal(error) =>
-//        log.error(s"Can't click `.contactitem` on $url\n${error.getMessage}")
-//    }
     val id = parseUserID(url)
-    val adv = Adv(
+    val advItems =
       Map(
         "siteid"   -> xpath("//span[contains(text(),'Номер объявления:')]/span[last()]"),
 //        "userid"   -> id,
@@ -128,7 +146,7 @@ object Adv extends Data {
         "url"      -> stripURL(url),
 //        "user"     -> toe(xpath("(//a[@id='linkUserAds'])[1]", Some("href"))),
         "user"     -> toe(xpath("(//a[contains(., 'Все другие объявления пользователя')])[1]", Some("href"))),
-        "phones"   -> toe(css(".contactitem")),
+//        "phones"   -> toe(css(".contactitem")),
         "price"    -> css("div.pricelabel strong"),
         "head"     -> css(".offerheadinner h1"),
         "location" -> css(".show-map-link"),
@@ -136,25 +154,9 @@ object Adv extends Data {
         "section"  -> toe(webDriver.findElements(By.cssSelector("#breadcrumbTop ul span")).map(_.getText).mkString),
         "viewed"   -> xpath("//div[contains(., 'Просмотры:') and @class='pdingtop10']/strong"),
         "scraped"  -> DateTime.now().toString("yyyy-MM-dd HHmmss")
-      )
+
     )
-    // TODO phones ! Часто два кототких телефона сливаются в один напр: 705-05-05 444-54-09 превращаются в 70505054445409. Tелефоны не разделены \n !!
-    if(adv.items("phones").contains("x") || adv.items("phones").isEmpty){
-      webDriver.get(s"http://olx.ua/ajax/misc/contact/phone/$id/white/")
-      val response: String = (parse(webDriver.findElement(By.xpath("//pre")).getText) \ "value") match {
-        case JString(s) => s; case _ => "" }
-      val phones = """([\d\(\)\-\s\+]+)""".r
-        .findAllMatchIn(response)
-          .map{ mo =>
-            val phone = """[\(\)\-\s\+]+""".r.replaceAllIn(mo.group(1), "")
-            if(phone.length > 12) { // if two phones has been concatenated as it said in TODO
-              val splt = phone.splitAt(phone.length/2)
-              splt._1 +"\n"+splt._2
-            } else phone
-          }.filter(_.length>7).mkString("\n")
-      adv.copy(items = adv.items.updated("phones", phones))
-    }
-    else adv
+    Adv(advItems.updated("skype", getSkype(id)).updated("phones", getPhones(id)))
   }
 
   def readStoredURLs(file: File = Cfg.savedir): Try[Set[String]] =
