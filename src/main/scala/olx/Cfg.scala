@@ -49,4 +49,6 @@ object Cfg {
   val terminate_after = Duration.fromNanos(config.getDuration("olx.terminate_after").toNanos)
 
   val brief_regexes = config.getStringList("olx.brief_regexes")
+
+  val next_page_retry = config.getInt("olx.next_page_retry")
 }

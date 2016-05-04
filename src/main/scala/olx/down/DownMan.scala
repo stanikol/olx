@@ -25,13 +25,12 @@ object DownMan {
 
 
 class DownMan extends Actor {
+  implicit val mat = akka.stream.ActorMaterializer()
 
-  var target: String = "Default"
-  val jobPool = MutebleSet.empty[JobPoolItem]
+  private var target: String = "Default"
+  private val jobPool = MutebleSet.empty[JobPoolItem]
 
   private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
-  private def savePath: String = s"${Cfg.savedir.getAbsolutePath}/$target " +
-    DateTime.now().toString(Cfg.save_path_time_suffix)
 
   override def preStart = {
     jobPool ++= 1 to Cfg.number_of_fetchers map { n =>
@@ -41,15 +40,15 @@ class DownMan extends Actor {
     storedLinks ++= Adv.readStoredURLs(Cfg.savedir).get
   }
 
-  var nextPage: Option[String] = None
-  val newLinks = MutebleSet.empty[String]
-  val fetchedLinks = MutebleSet.empty[String]
-  val storedLinks = MutebleSet.empty[String]
-  val errorLinks = MutebleSet.empty[String]
-  var visitedPages = MutebleSet.empty[String]
-  var masterActor: ActorRef = _
+  private var nextPage: Option[String] = None
+  private val newLinks = MutebleSet.empty[String]
+  private val fetchedLinks = MutebleSet.empty[String]
+  private val storedLinks = MutebleSet.empty[String]
+  private val errorLinks = MutebleSet.empty[String]
+  private var visitedPages = MutebleSet.empty[String]
+  private var masterActor: ActorRef = _
 
-  var nextPageRetry: Int = 3
+  private var nextPageRetry: Int = Cfg.next_page_retry
 
   private val startTime: DateTime = DateTime.now()
 
@@ -59,7 +58,7 @@ class DownMan extends Actor {
       target = target_
       println(s"$target -> $url")
       nextPage = Some(url)
-      nextPageRetry = 3
+      nextPageRetry = Cfg.next_page_retry
       visitedPages = MutebleSet.empty[String]
       self ! Tick()
     case DownMan.DownloadUrls(urls, target_) =>
@@ -68,7 +67,7 @@ class DownMan extends Actor {
       println(s"$target -> ${urls.length}")
       newLinks ++= urls
       nextPage = None
-      nextPageRetry = 3
+      nextPageRetry = Cfg.next_page_retry
       visitedPages = MutebleSet.empty[String]
       self ! Tick()
     case Tick() =>
@@ -114,7 +113,7 @@ class DownMan extends Actor {
           fetchedLinks.contains(url) || errorLinks.contains(url))
       )
       println(s"$target ${newFoundLinks.length} new links from ${urls.length} are found on ${nextPage.get}")
-      println(s"$target nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  ${visitedPages.contains(nextPage.get)}")
+      println(s"$target nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  wasVisitedBefore = ${visitedPages.contains(nextPage.get)}")
       if( visitedPages.contains(nextPg.getOrElse("")) ) nextPageRetry -= 1
       visitedPages += nextPage.get
       newLinks ++= newFoundLinks
@@ -127,11 +126,8 @@ class DownMan extends Actor {
       } else {
         jobPool += jobPoolItem.copy(url=None)
       }
-//      fetchNextLinksIfReady
+      fetchNextLinksIfReady
       offerToFetchAds
-//      fetchedLinks += nextPage.get
-//      self ! Tick()
-
 
 
     case Error(url, error) =>
@@ -174,8 +170,6 @@ class DownMan extends Actor {
     }
   }
 
-  implicit val mat = akka.stream.ActorMaterializer()
-
   private val durationFormatter = new PeriodFormatterBuilder()
     .appendDays()
     .appendSuffix(" day", " days")
@@ -193,15 +187,18 @@ class DownMan extends Actor {
     .appendSuffix(" milis")
     .toFormatter
 
-  def timeElapsed: String = {
+  private def timeElapsed: String = {
     val period = new Period(startTime, DateTime.now)
     durationFormatter.print(period)
   }
 
-  def timeFor1Adv: String = Try {
+  private def timeFor1Adv: String = Try {
     val millis: Long = new Period(startTime, DateTime.now()).toStandardDuration.getMillis
     durationFormatter.print(
       new Period(millis / fetchedLinks.toList.length).normalizedStandard()
     )
   }.getOrElse("0 seconds")
+
+  private def savePath: String = s"${Cfg.savedir.getAbsolutePath}/$target " +
+    DateTime.now().toString(Cfg.save_path_time_suffix)
 }
