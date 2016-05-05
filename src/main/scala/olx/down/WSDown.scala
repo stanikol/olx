@@ -3,6 +3,8 @@ package olx.down
 import org.joda.time.{DateTime, Period}
 import org.joda.time.format.PeriodFormatterBuilder
 
+import scala.concurrent.Future
+
 
 /**
   * Created by stanikol on 21.04.16.
@@ -18,12 +20,32 @@ object WSDown {
   /**
     * Created by stanikol on 06.04.16.
     */
-
-  var nextTarget = false
+  val actorSystem = ActorSystem("olxDownloaders")
 
   class MainActor extends Actor {
+    val downloadManager = actorSystem.actorOf(Props(classOf[DownloadManager]), name = "DM")
+    val targetsIterator = Cfg.targets.iterator
+    val startTime = DateTime.now()
+
     def receive: Receive = {
-      case "Done" => nextTarget = true
+      case "Start" => offerWork
+      case DownloadManager.Finished(target, fetchedCount) =>
+        println(s"Finished $target downloaded ${fetchedCount} ads")
+        offerWork
+    }
+    private def offerWork = {
+      if(targetsIterator.hasNext) {
+        val (target, url) = targetsIterator.next()
+        println(s"Starting $target $url")
+        downloadManager ! DownloadManager.DownloadUrl(url, target)
+      } else {
+        println(s"All targets are done.")
+        println("Terminating all jobs !")
+        val timeElapsed = durationFormatter.print( new Period(startTime, DateTime.now) )
+        println(s"Time elapsed $timeElapsed")
+        context.stop(self)
+        actorSystem.terminate()
+      }
     }
   }
 
@@ -31,26 +53,10 @@ object WSDown {
 
       if(!Cfg.savedir.exists()) Cfg.savedir.mkdirs()
 
-      implicit val ec = ExecutionContext.Implicits.global
 
-      val actorSystem = ActorSystem("olxDownloaders")
-      val downMan = actorSystem.actorOf(Props(classOf[DownMan]), name = "DownMan")
+      val mainActor = actorSystem.actorOf(Props(classOf[MainActor]), name = "MainActor")
+      mainActor ! "Start"
 
-      val startTime = DateTime.now()
-
-      for((target, url)<-Cfg.targets){
-        println(s"Starting $target $url")
-        val f = ask(downMan, DownMan.DownloadUrl(url,target))(Cfg.terminate_after).mapTo[DownMan.Finished]
-        while(!f.isCompleted){}
-        f.map { finished =>
-          println(s"Finished $target $url ${finished.fetchedCount}")
-        }
-      }
-
-      println("Terminating all jobs !")
-      actorSystem.terminate()
-      val timeElapsed = durationFormatter.print( new Period(startTime, DateTime.now) )
-      println(s"Time elapsed $timeElapsed")
 
     }
 

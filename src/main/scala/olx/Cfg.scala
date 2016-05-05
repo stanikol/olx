@@ -21,7 +21,7 @@ object Cfg {
 //  val firefox = apply("olx.firefox_binary")
 
   val targets: Map[String, String] =
-    ( for( (k,v) <- config.getObject("olx.targets") )
+    ( for( (k,v) <- config.getObject("olx.targetsIterator") )
         yield k -> v.render.replaceAll("^\"|\"$", "") ).toMap
 
   val number_of_fetchers = config.getInt("olx.number_of_fetchers")
@@ -42,7 +42,7 @@ object Cfg {
 
   val url =
     if(Cfg.targets.contains(Cfg.target))
-      Cfg.config.getString(s"olx.targets.$target")
+      Cfg.config.getString(s"olx.targetsIterator.$target")
     else
       config.getString("url")
 
