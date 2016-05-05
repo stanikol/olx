@@ -2,7 +2,7 @@ package olx.down
 
 import akka.actor.{Actor, ActorRef, Props, Terminated}
 import olx._
-import olx.down.DownMan.{JobPoolItem, Tick}
+import olx.down.DownMan.{Finished, JobPoolItem, Tick}
 import org.joda.time.format.PeriodFormatterBuilder
 import org.joda.time.{DateTime, Period}
 import org.slf4j.{LoggerFactory, MDC}
@@ -21,6 +21,7 @@ object DownMan {
     def isFree = url.isEmpty
     def isBusy = url.isDefined
   }
+  case class Finished(fetchedCount: Int)
 }
 
 
@@ -46,13 +47,36 @@ class DownMan extends Actor {
   private val storedLinks = MutebleSet.empty[String]
   private val errorLinks = MutebleSet.empty[String]
   private var visitedPages = MutebleSet.empty[String]
+  private var nextPageRetry: Int = Cfg.next_page_retry
   private var masterActor: ActorRef = _
 
-  private var nextPageRetry: Int = Cfg.next_page_retry
 
   private val startTime: DateTime = DateTime.now()
 
-  override def receive: Receive = {
+   def receiveIdle: Receive = {
+    case DownMan.DownloadUrl(url, target_) =>
+      masterActor = sender()
+      target = target_
+      println(s"$target -> $url")
+      nextPage = Some(url)
+      nextPageRetry = Cfg.next_page_retry
+      visitedPages = MutebleSet.empty[String]
+      context.become(receiveBusy)
+      self ! Tick()
+    case DownMan.DownloadUrls(urls, target_) =>
+      masterActor = sender()
+      target = target_
+      println(s"$target -> ${urls.length}")
+      newLinks ++= urls
+      nextPage = None
+      nextPageRetry = Cfg.next_page_retry
+      visitedPages = MutebleSet.empty[String]
+      context.become(receiveBusy)
+      self ! Tick()
+  }
+  override def receive: Receive = receiveIdle
+
+  def receiveBusy: Receive = {
     case DownMan.DownloadUrl(url, target_) =>
       masterActor = sender()
       target = target_
@@ -70,6 +94,7 @@ class DownMan extends Actor {
       nextPageRetry = Cfg.next_page_retry
       visitedPages = MutebleSet.empty[String]
       self ! Tick()
+
     case Tick() =>
       println(
         s"""
@@ -86,8 +111,18 @@ class DownMan extends Actor {
       fetchNextLinksIfReady
       offerToFetchAds
       import context.dispatcher
-      if((nextPage.isEmpty  && jobPool.forall(_.isFree) && newLinks.isEmpty ) | nextPageRetry <= 0)
-        masterActor ! "Done"
+      if((nextPage.isEmpty  && jobPool.forall(_.isFree) && newLinks.isEmpty ) | nextPageRetry <= 0) {
+        context.become(receiveIdle)
+        masterActor ! Finished(fetchedLinks.toList.length)
+        newLinks.empty
+//        fetchedLinks.empty
+//        storedLinks.empty
+        errorLinks.empty
+        visitedPages.empty
+        nextPageRetry = Cfg.next_page_retry
+        nextPage = None
+        nextPageRetry = Cfg.next_page_retry
+      }
 
       context.system.scheduler.scheduleOnce(Cfg.sleep_time) {
         self ! Tick()

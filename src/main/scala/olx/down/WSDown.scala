@@ -37,19 +37,6 @@ object WSDown {
       val downMan = actorSystem.actorOf(Props(classOf[DownMan]), name = "DownMan")
 
       val startTime = DateTime.now()
-      val durationFormatter = new PeriodFormatterBuilder()
-        .appendDays()
-        .appendSuffix(" day", " days")
-        .appendSeparator(" ")
-        .appendHours()
-        .appendSuffix(" hour", " hours")
-        .appendSeparator(" ")
-        .appendMinutes()
-        .appendSuffix(" minute", " minutes")
-        .appendSeparator(" ")
-        .appendSeconds()
-        .appendSuffix(" second", " seconds")
-        .toFormatter
 
       for((target, url)<-Cfg.targets){
         println(s"Starting $target $url")
@@ -57,6 +44,7 @@ object WSDown {
         while(!f.isCompleted){}
         println(s"Finished $target $url")
       }
+
       println("Terminating all jobs !")
       actorSystem.terminate()
       val timeElapsed = durationFormatter.print( new Period(startTime, DateTime.now) )
@@ -64,4 +52,17 @@ object WSDown {
 
     }
 
+    private val durationFormatter = new PeriodFormatterBuilder()
+      .appendDays()
+      .appendSuffix(" day", " days")
+      .appendSeparator(" ")
+      .appendHours()
+      .appendSuffix(" hour", " hours")
+      .appendSeparator(" ")
+      .appendMinutes()
+      .appendSuffix(" minute", " minutes")
+      .appendSeparator(" ")
+      .appendSeconds()
+      .appendSuffix(" second", " seconds")
+      .toFormatter
 }
