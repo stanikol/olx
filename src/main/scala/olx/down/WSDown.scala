@@ -40,9 +40,11 @@ object WSDown {
 
       for((target, url)<-Cfg.targets){
         println(s"Starting $target $url")
-        val f = ask(downMan, DownMan.DownloadUrl(url,target))(Cfg.terminate_after)
+        val f = ask(downMan, DownMan.DownloadUrl(url,target))(Cfg.terminate_after).mapTo[DownMan.Finished]
         while(!f.isCompleted){}
-        println(s"Finished $target $url")
+        f.map { finished =>
+          println(s"Finished $target $url ${finished.fetchedCount}")
+        }
       }
 
       println("Terminating all jobs !")
