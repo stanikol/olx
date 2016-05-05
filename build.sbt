@@ -13,7 +13,7 @@ libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 // SNC
 libraryDependencies += "com.typesafe" % "config" % "1.3.0"
 
-libraryDependencies += "org.seleniumhq.selenium" % "selenium-java" % "2.48.2"
+//libraryDependencies += "org.seleniumhq.selenium" % "selenium-java" % "2.48.2"
 
 //libraryDependencies += "org.seleniumhq.selenium" % "selenium-firefox-driver" % "2.45.0"
 

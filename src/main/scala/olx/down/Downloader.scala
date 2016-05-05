@@ -3,7 +3,7 @@ package olx.down
 
 import akka.actor.Actor
 import olx._
-import olx.down.Downl._
+import olx.down.Downloader._
 import org.joda.time.DateTime
 import org.jsoup.Jsoup
 import org.jsoup.nodes.{Document, Element}
@@ -17,7 +17,7 @@ import scala.util.{Failure, Success, Try}
 /**
   * Created by stanikol on 21.04.16.
   */
-object Downl {
+object Downloader {
   case class FetchAdvUrls(val url: String)
   case class FetchAdv( val url: String)
   type ParseResponse = (String, WSClient) => Data
@@ -25,7 +25,7 @@ object Downl {
 //  case class AdvUrlsFuture(f: Future[AdvUrls], url: String)
 }
 
-class Downl extends Actor {
+class Downloader extends Actor {
 
   var ws: WSClient = _
   var url: String = _
@@ -51,6 +51,9 @@ class Downl extends Actor {
         case Failure(error: Throwable) =>
           sender_ ! Error(url, error.getMessage)
           println(s"${self.path.name} error while executing $command")
+        case Success(error @ Error(url, errorMsg)) =>
+          sender_ ! error
+          println(s"${self.path.name} error while executing $command")
       })
   }
 
@@ -63,7 +66,7 @@ class Downl extends Actor {
           val soup: Document = Jsoup.parse(response.body)
           val links: List[String] = soup.select("a.detailsLink").map { el: Element => el.attr("href").split("#")(0) }.toList
           val nextPageUrl: Option[String] = Try(soup.select("a.pageNextPrev:contains(Следующее)").last().attr("href")).toOption
-          new AdvUrls(links, nextPageUrl)
+          new AdvUrls(links, url, nextPageUrl)
         }
     } catch {
         case e: Throwable  => Future.successful(Error(url, e.getMessage))
@@ -96,7 +99,6 @@ class Downl extends Actor {
               "scraped" -> DateTime.now().toString("yyyy-MM-dd HHmmss"),
               "phones" -> phone
             )
-//            val skype = Await.result(getSkype(id), Cfg.kill_actor_when_no_response)
             Adv(if (!skype.isEmpty) items.updated("skype", skype) else items)
         }
     }

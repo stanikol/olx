@@ -30,7 +30,7 @@ object Correct  extends  {
         val updatedAdFuture: Future[Adv] =
           if (badItems.nonEmpty) {
             println(s"Found invalid keys in ${ad.url}: $badItems")
-            ask(dl, Downl.FetchAdv(ad.url))(55 seconds).mapTo[Adv]
+            ask(dl, Downloader.FetchAdv(ad.url))(55 seconds).mapTo[Adv]
           } else { Future.successful(ad) }
         updatedAdFuture.onSuccess { case updatedAd =>
           new FileWriter(dst, true) {
@@ -45,7 +45,7 @@ object Correct  extends  {
   def main(args: Array[String]): Unit = {
 
     val actorSystem = ActorSystem("olxDownloaders")
-    val dl = actorSystem.actorOf(Props(classOf[Downl]), name = "DL")
+    val dl = actorSystem.actorOf(Props(classOf[Downloader]), name = "DL")
 
 
     val srcDir = new File("/Users/snc/scala/olx/down/")

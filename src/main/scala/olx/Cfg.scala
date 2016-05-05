@@ -32,11 +32,11 @@ object Cfg {
 
   val kill_actor_when_no_response  = Duration.fromNanos(config.getDuration("olx.kill_actor_when_no_response").toNanos)
 
-  val sleep_time  = Duration.fromNanos(config.getDuration("olx.sleep_time").toNanos)
+  val tick_time  = Duration.fromNanos(config.getDuration("olx.tick_time").toNanos)
 
   val save_path_time_suffix  = config.getString("olx.save_path_time_suffix")
 
-  val number_of_ads_to_download  = config.getInt("olx.number_of_ads_to_download")
+//  val number_of_ads_to_download  = config.getInt("olx.number_of_ads_to_download")
 
   val target = config.getString("target")
 

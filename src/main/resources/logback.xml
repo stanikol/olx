@@ -46,7 +46,8 @@
                 <file>${savePath}.log</file>
                 <append>true</append>
                 <!--<append>false</append>-->
-                <param name="immediateFlush" value="true"/>
+                <!--<param name="immediateFlush" value="true"/>-->
+                <param name="immediateFlush" value="false"/>
                 <layout class="ch.qos.logback.classic.PatternLayout">
                     <pattern>\n%msg,\n</pattern>
                 </layout>
