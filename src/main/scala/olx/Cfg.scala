@@ -42,7 +42,7 @@ object Cfg {
 
   val url =
     if(Cfg.targets.contains(Cfg.target))
-      Cfg.config.getString(s"olx.targets.$target")
+      Cfg.config.getString(s"olx.targetsIterator.$target")
     else
       config.getString("url")
 

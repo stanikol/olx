@@ -1,13 +1,8 @@
 package olx.down
 
-import java.time.Duration
-
 import olx.DurationFormatters
 import olx.down.DownloadManager.Finished
-import org.joda.time.{DateTime, Period}
-import org.joda.time.format.PeriodFormatterBuilder
-
-import scala.concurrent.Future
+import org.joda.time.{DateTime, Period, Duration => YodaDuration}
 import scala.concurrent.duration.Duration
 
 
@@ -70,7 +65,7 @@ object DownloadOLXApp {
       mainActor ! "Start"
       actorSystem.scheduler.scheduleOnce(Cfg.terminate_after){
         actorSystem.terminate().map { _ =>
-          if(new Duration(startTime, DateTime.now()).toNanos >  Cfg.terminate_after.toNanos)
+          if(new YodaDuration(startTime, DateTime.now()).compareTo(  new YodaDuration(Cfg.terminate_after)) > 0 )
               println(s"Terminated on Timeout ${Cfg.terminate_after}")}}
     }
 }

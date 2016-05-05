@@ -2,6 +2,7 @@ package olx.down
 
 import akka.actor.{Actor, ActorRef, Props, Terminated}
 import olx._
+import olx.Log._
 import olx.down.DownloadManager._
 import org.joda.time.{DateTime, Period}
 import org.slf4j.{LoggerFactory, MDC}
@@ -31,7 +32,7 @@ class DownloadManager extends Actor {
   private var target: String = "Default"
   private val jobPool = MutebleSet.empty[JobPoolItem]
 
-  private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
+//  private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
 
   override def preStart = {
     jobPool ++= 1 to Cfg.number_of_fetchers map { n =>
@@ -106,8 +107,7 @@ class DownloadManager extends Actor {
       jobPool -= jobPoolItem
       jobPool += jobPoolItem.copy(url=None)
       fetchedLinks += url
-      MDC.put("savePath", savePath)
-      saveAdvLogger.info(adv.toString())
+      saveAdv(adv, savePath)
       fetchAdsIfFree
       fetchNextPageAndLinksIfReady
     case advUrls @ AdvUrls(urls, currentPage, nextPg) =>

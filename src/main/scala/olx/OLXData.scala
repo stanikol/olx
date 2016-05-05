@@ -9,7 +9,7 @@ import org.json4s.DefaultFormats
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization._
-import org.openqa.selenium.{By, WebDriver}
+//import org.openqa.selenium.{By, WebDriver}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConversions._
@@ -23,52 +23,9 @@ sealed trait Data {
   val log = LoggerFactory.getLogger(this.getClass)
 
   def stripURL(fullURL: String) = fullURL.split("#")(0)
-
-  def css[WD<:WebDriver](css: String, attr: Option[String] = None)(implicit webDriver:WD): String =  {
-    if (attr.isDefined)
-      webDriver.findElement(By.cssSelector(css)).getAttribute(attr.get)
-    else
-      webDriver.findElement(By.cssSelector(css)).getText
-  }
-
-
-  def xpath[WD<:WebDriver](css: String, attr: Option[String] = None)(implicit webDriver:WD) =  {
-    if (attr.isDefined)
-      webDriver.findElement(By.xpath(css)).getAttribute(attr.get)
-    else
-      webDriver.findElement(By.xpath(css)).getText
-  }
-
-  def toe(s: => String, retrys: Int = 1): String =
-    Try(s).recoverWith({
-      case e: Throwable =>
-        Thread.sleep(1000)
-        if (retrys > 0) Try(toe(s, retrys-1))
-        else {
-          Success("")
-        }
-    }).get
 }
 
-
 case class AdvUrls(links: List[String], currentPage: String, nextPage: Option[String]) extends Data
-
-
-//object AdvUrls extends Data{
-//  def apply(page: String)(implicit webDriver: WebDriver): AdvUrls = {
-//    webDriver.get(page)
-//    val adLinks: List[String] =
-//      webDriver.findElements(By.cssSelector("a.detailsLink")).map{el => stripURL(el.getAttribute("href"))}.toList
-//    val nextPage: Option[String] =
-//    Try {
-//        webDriver.findElements(By.cssSelector("a.pageNextPrev"))
-//            .filter(_.getText.contains("Следующее")).last.getAttribute("href")
-//      }.toOption
-//    webDriver.get("about:blank")
-//    new AdvUrls(adLinks, nextPage)
-//  }
-//}
-
 
 case class Adv(items: Map[String, String]) extends Data {
 
@@ -134,7 +91,6 @@ object Adv extends Data {
     println(s"${result.length} ads are read from ${file.getAbsolutePath}")
     result
   } recoverWith { case error: Throwable =>
-    //    log.error(s"\n#ERROR Adv.apply(${file.getAbsoluteFile}):\n\t" + error.getMessage)
     Failure(error)
   }
 
