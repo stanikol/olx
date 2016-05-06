@@ -9,10 +9,11 @@ import org.slf4j.{LoggerFactory, MDC}
   */
 object Log {
   val rootLogger = LoggerFactory.getLogger("ROOT")
-  private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
+
   def saveAdv(adv: Adv, savePath: String) = {
     MDC.put("savePath", savePath)
     saveAdvLogger.info(adv.toString())
   }
 
+  private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
 }

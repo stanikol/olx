@@ -1,14 +1,14 @@
 package olx.down
 
-import akka.actor.{Actor, ActorRef, Props, Terminated}
-import olx._
+import akka.actor.{Actor, ActorRef}
 import olx.Log._
-import olx.down.DownloadManager._
+import olx._
 import org.joda.time.{DateTime, Period}
-import org.slf4j.{LoggerFactory, MDC}
+import play.api.libs.ws.ahc
 
 import scala.collection.mutable.{Set => MutebleSet}
-import scala.util.Try
+import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by stanikol on 21.04.16.
@@ -17,30 +17,25 @@ object DownloadManager {
   case class Tick()
   case class DownloadUrl(url: String, target: String)
   case class DownloadUrls(urls: Stream[String], target: String)
-  case class JobPoolItem(actorRef: ActorRef, url: Option[String]) {
-    def isFree = url.isEmpty
-    def isBusy = url.isDefined
+  case class JobPoolItem(job: Option[(String, Future[Data])]=None) {
+    def isFree = job.isEmpty
+    def url: Option[String] = job match { case None => None; case Some((url, f)) => Some(url) }
   }
   case class Finished(target: String, fetchedCount: Int, pagesCount: Int)
 }
 
 
 class DownloadManager extends Actor {
+  import olx.down.DownloadManager._
   import context.dispatcher
-  implicit val mat = akka.stream.ActorMaterializer()
+  implicit val materializer = akka.stream.ActorMaterializer()
+  implicit val wsClient = ahc.AhcWSClient()
 
   private var target: String = "Default"
-  private val jobPool = MutebleSet.empty[JobPoolItem]
+  private val jobPool = scala.collection.mutable.ListBuffer.empty[JobPoolItem]
 
-//  private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
+  //  private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
 
-  override def preStart = {
-    jobPool ++= 1 to Cfg.number_of_fetchers map { n =>
-        val actor = context.actorOf(Props(classOf[Downloader]), name = s"Downl_$n")
-        context.watch(actor)
-        new JobPoolItem(actor, None) }
-    storedLinks ++= Adv.readStoredURLs(Cfg.savedir).get
-  }
 
   private var nextPage: Option[String] = None
   private val newLinks = MutebleSet.empty[String]
@@ -53,21 +48,28 @@ class DownloadManager extends Actor {
   private val startTime: DateTime = DateTime.now()
 
 
+  override def preStart = {
+//    jobPool ++= 1 to Cfg.number_of_fetchers map { n => JobPoolItem() }
+//    assert(jobPool.length == Cfg.number_of_fetchers)
+    storedLinks ++= Adv.readStoredURLs(Cfg.savedir).get
+  }
 
-   private def receiveIdle: Receive = {
-    case DownloadManager.DownloadUrl(url, target_) =>
+  private def receiveIdle: Receive = {
+    case cmd @ DownloadUrl(url, target) =>
+      rootLogger.info(s"${self.path.name} received $cmd")
       masterActor = sender()
-      target = target_
-      println(s"$target -> $url")
+      this.target = target
+      rootLogger.info(s"$target -> $url")
       nextPage = Some(url)
       nextPageRetry = Cfg.next_page_retry
       visitedPages.clear
       context.become(receiveBusy)
       self ! Tick()
-    case DownloadManager.DownloadUrls(urls, target_) =>
+    case cmd @ DownloadUrls(urls, target_) =>
+      rootLogger.info(s"${self.path.name} received $cmd")
       masterActor = sender()
       target = target_
-      println(s"$target -> ${urls.length}")
+      rootLogger.info(s"$target -> ${urls.length}")
       newLinks.clear
       newLinks ++= urls
       nextPage = None
@@ -81,17 +83,15 @@ class DownloadManager extends Actor {
 
   private def receiveBusy: Receive = {
     case cmd @ (_:DownloadUrl | _:DownloadUrls) =>
-      println(s"${self.path.name} error: received command $cmd, but I'm busy !")
+      rootLogger.info(s"${self.path.name} error: received command $cmd, but I'm busy !")
     case Tick() =>
       printInfo
       fetchNextPageAndLinksIfReady
       fetchAdsIfFree
-      if((nextPage.isEmpty  && jobPool.forall(_.isFree) && newLinks.isEmpty ) | nextPageRetry <= 0) {
+      if((nextPage.isEmpty  && jobPool.isEmpty && newLinks.isEmpty ) | nextPageRetry <= 0) {
         context.become(receiveIdle)
         masterActor ! Finished(target, fetchedLinks.toList.length, visitedPages.toList.length)
         newLinks.clear
-//        fetchedLinks.clear
-//        storedLinks.clear
         errorLinks.clear
         visitedPages.clear
         nextPageRetry = Cfg.next_page_retry
@@ -101,97 +101,100 @@ class DownloadManager extends Actor {
         context.system.scheduler.scheduleOnce(Cfg.tick_time) { self ! Tick() }
       }
     case adv @ Adv(items) =>
-      val sender_ = sender()
       val url = items("url")
-      val jobPoolItem = jobPool.find(_.actorRef == sender_).get
-      jobPool -= jobPoolItem
-      jobPool += jobPoolItem.copy(url=None)
       fetchedLinks += url
-      saveAdv(adv, savePath)
+      freeJobPoolFrom(url)
+      saveAdv(adv)
       fetchAdsIfFree
       fetchNextPageAndLinksIfReady
     case advUrls @ AdvUrls(urls, currentPage, nextPg) =>
-      val sender_ = sender()
       val newFoundLinks = urls.filter(url =>
-        !(newLinks.contains(url) || storedLinks.contains(url) ||
+          !(newLinks.contains(url) || storedLinks.contains(url) ||
           fetchedLinks.contains(url) || errorLinks.contains(url))
       )
-      println(s"$target ${newFoundLinks.length} new links from ${urls.length} are found on ${currentPage}")
-      println(s"$target visitedPages = ${visitedPages.toList.length} nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  wasVisitedBefore = ${visitedPages.contains(nextPage.get)}")
+      rootLogger.info(s"$target ${newFoundLinks.length} new links from ${urls.length} are found on ${currentPage}")
+      rootLogger.info(s"$target visitedPages = ${visitedPages.toList.length} nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  wasVisitedBefore = ${visitedPages.contains(nextPage.get)}")
       if( visitedPages.contains(nextPg.getOrElse("")) ) nextPageRetry -= 1
       visitedPages += currentPage
       newLinks ++= newFoundLinks
       nextPage = nextPg
-      val jobPoolItem = jobPool.find(_.actorRef == sender_).get
-      jobPool -= jobPoolItem
-      if(newFoundLinks.length == 0 && nextPage.isDefined && nextPageRetry >= 0) {
-        jobPoolItem.actorRef ! Downloader.FetchAdvUrls(nextPage.get)
-        jobPool += jobPoolItem.copy(url=nextPage)
-      } else {
-        jobPool += jobPoolItem.copy(url=None)
-      }
+      freeJobPoolFrom(currentPage)
       fetchNextPageAndLinksIfReady
       fetchAdsIfFree
     case Error(url, error) =>
       val sender_ = sender()
-      val jobPoolItem = jobPool.find(_.actorRef == sender_).get
-      jobPool -= jobPoolItem
-      jobPool += jobPoolItem.copy(url=None)
+      freeJobPoolFrom(url)
       errorLinks += url
-      println(s"$target ${sender_.path.name} got error with $url: ${error}")
+      rootLogger.info(s"$target ${sender_.path.name} got error with $url: ${error}")
       fetchNextPageAndLinksIfReady
       fetchAdsIfFree
-    case Terminated(actor) =>
-      jobPool.find(_.actorRef == actor) match {
-        case  Some(j @ JobPoolItem(actorRef, _)) => jobPool -= j
-        case _ =>
-      }
+
+    case unknown =>
+      rootLogger.error(s"Unknown command $unknown.")
   }
 
   private def fetchNextPageAndLinksIfReady: Unit = {
-//      if(!visitedPages.contains(nextPage.getOrElse("")) && nextPage.isDefined
-//        && freeJob.isDefined && newLinks.isEmpty && nextPageRetry > 0) {
-    if(!visitedPages.contains(nextPage.getOrElse("")) && nextPage.isDefined
-        && jobPool.forall(_.isFree) && newLinks.isEmpty && nextPageRetry > 0) {
-        val pageUrl = nextPage.get
-        println(s"$target Going to fetch "+pageUrl)
-        val freeJob = jobPool.find(_.isFree)
-        val newJob = freeJob.get
-        jobPool -= newJob
-        jobPool += newJob.copy(url=Some(pageUrl))
-        newJob.actorRef ! Downloader.FetchAdvUrls(pageUrl)
-      }
-  }
-
-  private def fetchAdsIfFree: Unit = {
-    var freeJob = jobPool.find(_.isFree)
-    while(freeJob.isDefined && newLinks.nonEmpty){
-          val url = newLinks.head
-          newLinks -= url
-          jobPool -= freeJob.get
-          jobPool += freeJob.get.copy(url=Some(url))
-          freeJob.get.actorRef ! Downloader.FetchAdv(url)
-          freeJob = jobPool.find(_.url.isEmpty)
+    if(!visitedPages.contains(nextPage.getOrElse("")) && nextPage.isDefined && jobPool.isEmpty
+                                                                  && newLinks.isEmpty && nextPageRetry > 0) {
+          val nextPageUrl = this.nextPage.get
+          rootLogger.info(s"Going to fetch ad links from ${nextPageUrl}")
+          val query = Scrap.fetchAdvUrls(nextPageUrl)
+          query.onComplete({
+            case Success(advUrls@ AdvUrls(links, currentPage, nextPage)) =>
+              self ! advUrls
+              rootLogger.info(s"Successfully fetched ${links.length} links from $currentPage. Next page is ${nextPage.getOrElse("None")}")
+            case Failure(error: Throwable) =>
+              self ! Error(nextPageUrl, error.getMessage)
+              rootLogger.error(s"Failure fetching links from $nextPageUrl: ${error.getMessage}")
+            case Success(error @ Error(url, errorMsg)) =>
+              self ! error
+              rootLogger.error(s"Error fetching links from $url: $errorMsg.")
+          })
+          jobPool += JobPoolItem(Some(nextPageUrl->query))
     }
   }
 
-  private def timeElapsed: String = {
-    val period = new Period(startTime, DateTime.now)
-    DurationFormatters.durationWithMillis.print(period)
+  private def fetchAdsIfFree: Unit = {
+    while(jobPool.length <= Cfg.number_of_fetchers && newLinks.nonEmpty){
+      val adUrl = newLinks.head
+      newLinks -= adUrl
+      val query: Future[Data] = Scrap.fetchAdv(adUrl)
+      query.onComplete({
+        case complete =>
+          complete match {
+            case Success(adv@Adv(items)) =>
+              self ! adv
+              rootLogger.info(s"Successfully fetched an ad from $adUrl is successfully scraped.")
+            case Failure(error: Throwable) =>
+              self ! Error(adUrl, error.getMessage)
+              rootLogger.error(s"Failure fetching ad from $adUrl: ${error.getMessage}.")
+            case Success(error @ Error(url, errorMsg)) =>
+              rootLogger.error(s"Error fetching ad from $url: $errorMsg.")
+              self ! error
+          }
+      })
+      jobPool += JobPoolItem(Some(adUrl->query))
+      rootLogger.info(s"Got command to scrap an ad from $adUrl; newLinks = ${newLinks.toList.length}; jobPool.length = ${jobPool.length}.")
+    }
   }
-
-  private def timeFor1Adv: String = Try {
-    val millis: Long = new Period(startTime, DateTime.now()).toStandardDuration.getMillis
-    DurationFormatters.durationWithMillis.print(
-      new Period(millis / fetchedLinks.toList.length).normalizedStandard()
-    )
-  }.getOrElse("0 seconds")
 
   private def savePath: String = s"${Cfg.savedir.getAbsolutePath}/$target " +
     DateTime.now().toString(Cfg.save_path_time_suffix)
 
+  val saveAdv: Function1[Adv, Unit] = Log.saveAdv(_, savePath)
+
   private def printInfo = {
-    println(
+          def timeElapsed: String = {
+            val period = new Period(startTime, DateTime.now)
+            DurationFormatters.durationWithMillis.print(period)
+          }
+          def timeFor1Adv: String = Try {
+            val millis: Long = new Period(startTime, DateTime.now()).toStandardDuration.getMillis
+            DurationFormatters.durationWithMillis.print(
+              new Period(millis / fetchedLinks.toList.length).normalizedStandard()
+            )
+          }.getOrElse("0 seconds")
+    rootLogger.info(
       s"""
          |Info: Time elapsed $timeElapsed - ~ $timeFor1Adv for 1 adv
          |target = $target
@@ -202,7 +205,16 @@ class DownloadManager extends Actor {
          |nextPageRetry = ${nextPageRetry}
          |visitedPages = ${visitedPages.toList.length}
          |jobPool = ${jobPool.filter(_.isFree).toList.length} free of ${jobPool.toList.length}
-         |jobPoolURLs = ${jobPool.filter(_.isBusy).map(_.url.get).mkString(", ")}
+         |jobPoolURLs = ${jobPool.filter(!_.isFree).map(_.url.get).mkString(", ")}
          """.stripMargin)
+
   }
+
+  private def freeJobPoolFrom(url: String) = {
+    val jobPoolItem = jobPool.find(_.url.getOrElse("") == url).get
+    jobPool -= jobPoolItem
+  }
+
+
+
 }

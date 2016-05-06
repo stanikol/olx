@@ -1,8 +1,11 @@
 package olx.down
 
-import olx.DurationFormatters
+import akka.stream.ActorMaterializer
+import olx.{DurationFormatters, Log}
 import olx.down.DownloadManager.Finished
 import org.joda.time.{DateTime, Period, Duration => YodaDuration}
+import play.api.libs.ws.ahc
+
 import scala.concurrent.duration.Duration
 
 
@@ -15,7 +18,7 @@ object DownloadOLXApp {
   import akka.pattern.ask
   import olx.Cfg
   import scala.collection.mutable.{Set => MutableSet}
-  import scala.concurrent.ExecutionContext
+  import Log.rootLogger
 
   /**
     * Created by stanikol on 06.04.16.
@@ -29,28 +32,29 @@ object DownloadOLXApp {
       val targetsIterator = Cfg.targets.iterator
       val startTime = DateTime.now()
 
+
       def receive: Receive = {
           case "Start" => offerWorkOrFinish
           case finished @ DownloadManager.Finished(target, fetchedCount, pagesCount) =>
-            println(s"Finished $target downloaded ${fetchedCount} ads from $pagesCount pages")
+            rootLogger.info(s"Finished $target downloaded ${fetchedCount} ads from $pagesCount pages")
             finishedTargets += finished
             offerWorkOrFinish
       }
       private def offerWorkOrFinish = {
           if(targetsIterator.hasNext) {
             val (target, url) = targetsIterator.next()
-            println(s"Starting $target $url")
+            rootLogger.info(s"Starting $target $url")
             downloadManager ! DownloadManager.DownloadUrl(url, target)
           } else {
-            println(s"All targets are done:")
-            println(
+            rootLogger.info(s"All targets are done:")
+            rootLogger.info("\n"+
               (for(Finished(target, fetchedCount, pagesCount)<-finishedTargets)
                   yield f"\t\t$target%-12s\t+=\t$fetchedCount%8s\t($pagesCount)").mkString("\n") +
                 f"\n\t\t${"Total"}%-12s\t==\t${finishedTargets.foldLeft(0){ case (acc, Finished(_, fetchedCount, _)) => acc + fetchedCount }}%8s"
             )
-            println("Terminating all jobs !")
+            rootLogger.info("Terminating all jobs !")
             val timeElapsed = DurationFormatters.duration.print( new Period(startTime, DateTime.now) )
-            println(s"Time elapsed from start: $timeElapsed")
+            rootLogger.info(s"Time elapsed from start: $timeElapsed")
             context.stop(self)
             actorSystem.terminate()
           }
@@ -66,6 +70,9 @@ object DownloadOLXApp {
       actorSystem.scheduler.scheduleOnce(Cfg.terminate_after){
         actorSystem.terminate().map { _ =>
           if(new YodaDuration(startTime, DateTime.now()).compareTo(  new YodaDuration(Cfg.terminate_after)) > 0 )
-              println(s"Terminated on Timeout ${Cfg.terminate_after}")}}
+              rootLogger.info(s"Terminated on Timeout ${Cfg.terminate_after}")}}
     }
+
+//  implicit val materializer = ActorMaterializer()
+
 }

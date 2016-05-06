@@ -2,6 +2,9 @@ package olx
 
 import java.io.File
 
+import akka.stream.ActorMaterializer
+import play.api.libs.ws.ahc
+
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.Duration
 
@@ -51,4 +54,5 @@ object Cfg {
   val brief_regexes = config.getStringList("olx.brief_regexes")
 
   val next_page_retry = config.getInt("olx.next_page_retry")
+
 }
