@@ -3,6 +3,7 @@ package olx.down
 import akka.actor.{Actor, ActorRef}
 import olx.Log._
 import olx._
+import olx.down.scrap.{OLXScrapWS, ScrapWS}
 import org.joda.time.{DateTime, Period}
 import play.api.libs.ws.ahc
 
@@ -13,29 +14,28 @@ import scala.util.{Failure, Success, Try}
 /**
   * Created by stanikol on 21.04.16.
   */
-object DownloadManager {
+object DownloadManagerWS {
   case class Tick()
   case class DownloadUrl(url: String, target: String)
   case class DownloadUrls(urls: Stream[String], target: String)
+
+  case class Finished(target: String, fetchedCount: Int, pagesCount: Int)
+}
+
+abstract class DownloadManagerWS extends Actor  with ScrapWS {
+
   case class JobPoolItem(job: Option[(String, Future[Data])]=None) {
     def isFree = job.isEmpty
     def url: Option[String] = job match { case None => None; case Some((url, f)) => Some(url) }
   }
-  case class Finished(target: String, fetchedCount: Int, pagesCount: Int)
-}
-
-
-class DownloadManager extends Actor {
-  import olx.down.DownloadManager._
-  import context.dispatcher
-  implicit val materializer = akka.stream.ActorMaterializer()
-  implicit val wsClient = ahc.AhcWSClient()
-
-  private var target: String = "Default"
+  // TODO stop when some predifined number of pages without new links occurs
   private val jobPool = scala.collection.mutable.ListBuffer.empty[JobPoolItem]
 
-  //  private val saveAdvLogger = LoggerFactory.getLogger("SCRAP")
-
+  import context.dispatcher
+  import olx.down.DownloadManagerWS._
+  implicit val materializer = akka.stream.ActorMaterializer()
+  implicit val wsClient = ahc.AhcWSClient()
+  private var target: String = "Default"
 
   private var nextPage: Option[String] = None
   private val newLinks = MutebleSet.empty[String]
@@ -43,14 +43,13 @@ class DownloadManager extends Actor {
   private val storedLinks = MutebleSet.empty[String]
   private val errorLinks = MutebleSet.empty[String]
   private val visitedPages = MutebleSet.empty[String]
-  private var nextPageRetry: Int = Cfg.next_page_retry
+  private var retriesWhenSameNextPageOccurs: Int = Cfg.retries_when_same_next_page_occurs
+  private var numberOfPagesWithoutNewLinks: Int = Cfg.number_of_pages_without_new_links
   private var masterActor: ActorRef = _
   private val startTime: DateTime = DateTime.now()
 
 
   override def preStart = {
-//    jobPool ++= 1 to Cfg.number_of_fetchers map { n => JobPoolItem() }
-//    assert(jobPool.length == Cfg.number_of_fetchers)
     storedLinks ++= Adv.readStoredURLs(Cfg.savedir).get
   }
 
@@ -59,9 +58,10 @@ class DownloadManager extends Actor {
       rootLogger.info(s"${self.path.name} received $cmd")
       masterActor = sender()
       this.target = target
-      rootLogger.info(s"$target -> $url")
+      rootLogger.info(s"`$target` -> $url")
       nextPage = Some(url)
-      nextPageRetry = Cfg.next_page_retry
+      retriesWhenSameNextPageOccurs = Cfg.retries_when_same_next_page_occurs
+      numberOfPagesWithoutNewLinks = Cfg.number_of_pages_without_new_links
       visitedPages.clear
       context.become(receiveBusy)
       self ! Tick()
@@ -69,11 +69,12 @@ class DownloadManager extends Actor {
       rootLogger.info(s"${self.path.name} received $cmd")
       masterActor = sender()
       target = target_
-      rootLogger.info(s"$target -> ${urls.length}")
+      rootLogger.info(s"`$target` -> ${urls.length}")
       newLinks.clear
       newLinks ++= urls
       nextPage = None
-      nextPageRetry = Cfg.next_page_retry
+      retriesWhenSameNextPageOccurs = Cfg.retries_when_same_next_page_occurs
+      numberOfPagesWithoutNewLinks = Cfg.number_of_pages_without_new_links
       visitedPages.clear
       context.become(receiveBusy)
       self ! Tick()
@@ -88,18 +89,21 @@ class DownloadManager extends Actor {
       printInfo
       fetchNextPageAndLinksIfReady
       fetchAdsIfFree
-      if((nextPage.isEmpty  && jobPool.isEmpty && newLinks.isEmpty ) | nextPageRetry <= 0) {
-        context.become(receiveIdle)
-        masterActor ! Finished(target, fetchedLinks.toList.length, visitedPages.toList.length)
-        newLinks.clear
-        errorLinks.clear
-        visitedPages.clear
-        nextPageRetry = Cfg.next_page_retry
-        nextPage = None
-        nextPageRetry = Cfg.next_page_retry
-      } else {
-        context.system.scheduler.scheduleOnce(Cfg.tick_time) { self ! Tick() }
-      }
+//      if((nextPage.isEmpty  && jobPool.isEmpty && newLinks.isEmpty ) |
+//            retriesWhenSameNextPageOccurs <= 0 | numberOfPagesWithoutNewLinks <= 0) {
+//        context.become(receiveIdle)
+//        masterActor ! Finished(target, fetchedLinks.toList.length, visitedPages.toList.length)
+//        newLinks.clear
+//        errorLinks.clear
+//        visitedPages.clear
+//        retriesWhenSameNextPageOccurs = Cfg.retries_when_same_next_page_occurs
+//        nextPage = None
+//        numberOfPagesWithoutNewLinks = Cfg.number_of_pages_without_new_links
+//      } else {
+//        context.system.scheduler.scheduleOnce(Cfg.tick_time) { self ! Tick() }
+//      }
+      context.system.scheduler.scheduleOnce(Cfg.tick_time) { self ! Tick() }
+
     case adv @ Adv(items) =>
       val url = items("url")
       fetchedLinks += url
@@ -112,9 +116,11 @@ class DownloadManager extends Actor {
           !(newLinks.contains(url) || storedLinks.contains(url) ||
           fetchedLinks.contains(url) || errorLinks.contains(url))
       )
-      rootLogger.info(s"$target ${newFoundLinks.length} new links from ${urls.length} are found on ${currentPage}")
-      rootLogger.info(s"$target visitedPages = ${visitedPages.toList.length} nextPage = ${nextPg.getOrElse("None")} nextPageRetry = $nextPageRetry  wasVisitedBefore = ${visitedPages.contains(nextPage.get)}")
-      if( visitedPages.contains(nextPg.getOrElse("")) ) nextPageRetry -= 1
+      if( visitedPages.contains(nextPg.getOrElse("")) ) retriesWhenSameNextPageOccurs -= 1
+      if(newFoundLinks.isEmpty) numberOfPagesWithoutNewLinks -= 1
+      else numberOfPagesWithoutNewLinks = Cfg.number_of_pages_without_new_links
+      rootLogger.info(s"`$target` ${newFoundLinks.length} new links from ${urls.length} are found on ${currentPage}.\n" +
+                      s"`$target` numberOfPagesWithoutNewLinks = ${numberOfPagesWithoutNewLinks}")
       visitedPages += currentPage
       newLinks ++= newFoundLinks
       nextPage = nextPg
@@ -125,7 +131,7 @@ class DownloadManager extends Actor {
       val sender_ = sender()
       freeJobPoolFrom(url)
       errorLinks += url
-      rootLogger.info(s"$target ${sender_.path.name} got error with $url: ${error}")
+      rootLogger.info(s"`$target` ${sender_.path.name} got error with $url: ${error}")
       fetchNextPageAndLinksIfReady
       fetchAdsIfFree
 
@@ -135,10 +141,10 @@ class DownloadManager extends Actor {
 
   private def fetchNextPageAndLinksIfReady: Unit = {
     if(!visitedPages.contains(nextPage.getOrElse("")) && nextPage.isDefined && jobPool.isEmpty
-                                                                  && newLinks.isEmpty && nextPageRetry > 0) {
+      && newLinks.isEmpty && retriesWhenSameNextPageOccurs >= 1 && numberOfPagesWithoutNewLinks >= 1) {
           val nextPageUrl = this.nextPage.get
           rootLogger.info(s"Going to fetch ad links from ${nextPageUrl}")
-          val query = Scrap.fetchAdvUrls(nextPageUrl)
+          val query = fetchAdvUrls(nextPageUrl)
           query.onComplete({
             case Success(advUrls@ AdvUrls(links, currentPage, nextPage)) =>
               self ! advUrls
@@ -151,6 +157,18 @@ class DownloadManager extends Actor {
               rootLogger.error(s"Error fetching links from $url: $errorMsg.")
           })
           jobPool += JobPoolItem(Some(nextPageUrl->query))
+    } else if((nextPage.isEmpty  && jobPool.isEmpty && newLinks.isEmpty ) ||
+                  retriesWhenSameNextPageOccurs <= 0 || numberOfPagesWithoutNewLinks <= 0) {
+                    context.become(receiveIdle)
+                    val finished = Finished(target, fetchedLinks.toList.length, visitedPages.toList.length)
+                    masterActor ! finished
+                    rootLogger.info(s"Finished $finished.")
+                    newLinks.clear
+                    errorLinks.clear
+                    visitedPages.clear
+                    retriesWhenSameNextPageOccurs = Cfg.retries_when_same_next_page_occurs
+                    nextPage = None
+                    numberOfPagesWithoutNewLinks = Cfg.number_of_fetchers
     }
   }
 
@@ -158,18 +176,18 @@ class DownloadManager extends Actor {
     while(jobPool.length <= Cfg.number_of_fetchers && newLinks.nonEmpty){
       val adUrl = newLinks.head
       newLinks -= adUrl
-      val query: Future[Data] = Scrap.fetchAdv(adUrl)
+      val query: Future[Data] = fetchAdv(adUrl)
       query.onComplete({
         case complete =>
           complete match {
             case Success(adv@Adv(items)) =>
               self ! adv
-              rootLogger.info(s"Successfully fetched an ad from $adUrl is successfully scraped.")
+              rootLogger.info(s"An ad from $adUrl is successfully scraped.")
             case Failure(error: Throwable) =>
               self ! Error(adUrl, error.getMessage)
-              rootLogger.error(s"Failure fetching ad from $adUrl: ${error.getMessage}.")
+              rootLogger.error(s"Failure while fetching an ad from $adUrl: ${error.getMessage}.")
             case Success(error @ Error(url, errorMsg)) =>
-              rootLogger.error(s"Error fetching ad from $url: $errorMsg.")
+              rootLogger.error(s"Error while fetching an ad from  $url: $errorMsg.")
               self ! error
           }
       })
@@ -202,7 +220,7 @@ class DownloadManager extends Actor {
          |fetchedLinks = ${fetchedLinks.toList.length}
          |errorLinks = ${errorLinks.toList.length}
          |nextPage = ${nextPage.getOrElse("None")}
-         |nextPageRetry = ${nextPageRetry}
+         |retriesWhenSameNextPageOccurs = ${retriesWhenSameNextPageOccurs}
          |visitedPages = ${visitedPages.toList.length}
          |jobPool = ${jobPool.filter(_.isFree).toList.length} free of ${jobPool.toList.length}
          |jobPoolURLs = ${jobPool.filter(!_.isFree).map(_.url.get).mkString(", ")}

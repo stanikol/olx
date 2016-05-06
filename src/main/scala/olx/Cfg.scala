@@ -53,6 +53,8 @@ object Cfg {
 
   val brief_regexes = config.getStringList("olx.brief_regexes")
 
-  val next_page_retry = config.getInt("olx.next_page_retry")
+  val retries_when_same_next_page_occurs = config.getInt("olx.retries_when_same_next_page_occurs")
+
+  val number_of_pages_without_new_links = config.getInt("olx.number_of_pages_without_new_links")
 
 }

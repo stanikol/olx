@@ -21,6 +21,8 @@ libraryDependencies += "com.typesafe" % "config" % "1.3.0"
 
 //libraryDependencies += "org.seleniumhq.selenium" % "selenium-chrome-driver" % "2.53.0"
 
+libraryDependencies += "com.asprise.ocr" % "java-ocr-api" % "[15,)"
+
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.3"
 
 libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.2.11"
