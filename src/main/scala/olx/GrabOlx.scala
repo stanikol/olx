@@ -99,11 +99,34 @@ object GrabOlx {
         body <- Unmarshal(response.entity).to[String]
         phones = parsePhones(body)
         updatedData = if(phones.nonEmpty) data.updated("phones",phones) else data
-      } yield ByteString(updatedData.toJson.prettyPrint)
+      } yield updatedData
 
   }
 
-  def createDownloadStream(startLink: String, maxDownloadCount: Int)(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext)
+  sealed trait ResultEncoding{
+    val header: ByteString
+    val footer: ByteString
+    def encode(d: Map[String, String]): ByteString
+  }
+  object ResultEncoding {
+    val fromString: PartialFunction[String, ResultEncoding] = {
+      case "pretty-json" => PrettyJSON
+      case "json" => JSON
+      case _ => JSON
+    }
+  }
+  case object JSON extends ResultEncoding{
+    val header = ByteString("[")
+    val footer = ByteString("]")
+    def encode(d: Map[String, String]): ByteString = ByteString(d.toJson.compactPrint+",\n")
+  }
+  case object PrettyJSON extends ResultEncoding {
+    val header = ByteString("[\n")
+    val footer = ByteString("\n]")
+    def encode(d: Map[String, String]) = ByteString(d.toJson.prettyPrint+",\n")
+  }
+
+  def createDownloadStream(startLink: String, maxDownloadCount: Int, encoding: ResultEncoding=PrettyJSON)(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext)
     : Source[ByteString, NotUsed] ={
     println(s"startLink=$startLink maxDownloadCount=$maxDownloadCount")
     val advertisements: Source[ByteString, _] = Source
@@ -113,10 +136,11 @@ object GrabOlx {
       .take(maxDownloadCount)
       .via(downloadAdvertisements)
       .via(downloadPhones)
+      .via(Flow[Map[String, String]].map(encoding.encode))
     Source.combine(
-      Source.single(ByteString("[")),
+      Source.single(encoding.header),
       advertisements,
-      Source.single(ByteString("]"))
+      Source.single(encoding.footer)
     )(Concat(_))
   }
 }

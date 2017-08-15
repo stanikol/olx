@@ -13,12 +13,12 @@ import spray.json.DefaultJsonProtocol
 import scala.io.StdIn
 
 object WebServer extends App with SprayJsonSupport with Directives with DefaultJsonProtocol{
-    final case class Order(url:String, max: Int)
+    final case class Order(url:String, max: Int, format: String)
 
-    implicit val system = ActorSystem("grab-olx")
+    implicit val system = ActorSystem("grab-olx-actor-system")
     implicit val materializer = ActorMaterializer()
     implicit val executionContext = system.dispatcher
-    implicit val orderFormat = jsonFormat2(Order)
+    implicit val orderFormat = jsonFormat3(Order)
     implicit val streamingSupport: EntityStreamingSupport = EntityStreamingSupport.json()
 
     val jsonContentType = ContentType(MediaTypes.`application/json`.withParams(Map("charset" -> "utf-8")))
@@ -32,14 +32,17 @@ object WebServer extends App with SprayJsonSupport with Directives with DefaultJ
       } ~
       path("download.json"){
         post{
-          parameters('url.as[String], 'max.as[Int]) { (url, max) =>
-            complete(HttpEntity(jsonContentType, olx.GrabOlx.createDownloadStream(url, max)))
+          parameters('url.as[String], 'max.as[Int], 'format.?("json")) { (url, max, format) =>
+            complete(HttpEntity(jsonContentType,
+              olx.GrabOlx.createDownloadStream(url, max, GrabOlx.ResultEncoding.fromString(format))))
           } ~
           entity(as[Order]){ order =>
-            complete(HttpEntity(jsonContentType, olx.GrabOlx.createDownloadStream(order.url, order.max)))
+            complete(HttpEntity(jsonContentType,
+              olx.GrabOlx.createDownloadStream(order.url, order.max, GrabOlx.ResultEncoding.fromString(order.format))))
           } ~
-          formFields('url, 'max.as[Int]){(url, max) =>
-            complete(HttpEntity(jsonContentType, olx.GrabOlx.createDownloadStream(url, max)))
+          formFields('url, 'max.as[Int], 'format.?("json")){(url, max, format) =>
+            complete(HttpEntity(jsonContentType,
+                      olx.GrabOlx.createDownloadStream(url, max, GrabOlx.ResultEncoding.fromString(format))))
 
           }
         }
