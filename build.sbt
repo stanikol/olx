@@ -1,42 +1,41 @@
-name := """olx"""
+name := "grab-oclc"
 
-version := "1.0"
+version := "0.1"
 
 scalaVersion := "2.11.7"
 
-// Change this to another test framework if you prefer
-libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test"
+resolvers +=
+  "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
-// Uncomment to use Akka
-//libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.3.11"
+libraryDependencies ++= Seq(
+//  "com.typesafe.akka" %% "akka-actor" % "2.4.2",
+//  "com.typesafe.akka" %% "akka-stream" % "2.5.2",
+  "org.jsoup" % "jsoup" % "1.10.2",
+  // https://mvnrepository.com/artifact/com.typesafe.play/play-ws_2.11
+//  "com.typesafe.play" %% "play-ws" % "2.5.15",
+  // LOGGING
+  "org.slf4s" %% "slf4s-api" % "1.7.12",
+  "ch.qos.logback" % "logback-classic" % "1.1.2",
+  // https://mvnrepository.com/artifact/com.typesafe/config
+  "com.typesafe" % "config" % "1.3.1"
+  // https://mvnrepository.com/artifact/org.codehaus.plexus/plexus-utils
+//  "org.codehaus.plexus" % "plexus-utils" % "3.0.24"
 
-// SNC
-libraryDependencies += "com.typesafe" % "config" % "1.3.0"
+  ,"com.typesafe.akka" %% "akka-http" % "10.0.9"
+  ,"com.typesafe.akka" %% "akka-stream" % "2.5.3"
+  ,"com.typesafe.akka" %% "akka-http-spray-json" % "10.0.7"
 
-//libraryDependencies += "org.seleniumhq.selenium" % "selenium-java" % "2.48.2"
+  ,"com.janschulte" %% "akvokolekta" % "0.1.0-SNAPSHOT"
+  ,"joda-time" % "joda-time" % "2.9.9"
+//  ,"com.chuusai" %% "shapeless" % "2.3.2"
 
-//libraryDependencies += "org.seleniumhq.selenium" % "selenium-firefox-driver" % "2.45.0"
+  // UNSUSED OLD DEPS
+//  "com.typesafe.akka" %% "akka-stream-experimental" % "2.0.3",
+//  "com.typesafe.akka" % "akka-actor_2.11" % "2.5.2",
+//  "io.spray" %% "spray-client" % "1.3.2",
+//  "org.jsoup" % "jsoup" % "1.8.1",
+)
 
-//libraryDependencies += "org.seleniumhq.selenium" % "selenium-safari-driver" % "2.53.0"
 
-//libraryDependencies += "org.seleniumhq.selenium" % "selenium-chrome-driver" % "2.53.0"
 
-libraryDependencies += "com.asprise.ocr" % "java-ocr-api" % "[15,)"
-
-libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.3"
-
-libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.2.11"
-
-libraryDependencies += "org.json4s" %% "json4s-native" % "3.2.11"
-
-libraryDependencies += "com.github.nscala-time" %% "nscala-time" % "2.10.0"
-
-libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
-
-libraryDependencies += "com.typesafe.akka" % "akka-actor_2.11" % "2.4.2"
-
-libraryDependencies += "com.ibm.icu" % "icu4j" % "57.1"
-
-libraryDependencies += "com.typesafe.play" % "play-ws_2.11" % "2.5.2"
-
-libraryDependencies += "org.jsoup" % "jsoup" % "1.9.1"
+// enablePlugins(JavaAppPackaging)

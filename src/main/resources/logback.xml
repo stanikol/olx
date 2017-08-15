@@ -1,37 +1,22 @@
 <configuration>
-    <appender name="SCRAPED" class="ch.qos.logback.core.FileAppender">
-        <file>scraped.json</file>
-        <param name="immediateFlush" value="true"/>
-        <append>false</append>
-        <encoder>
-            <pattern>\n%msg,\n</pattern>
-        </encoder>
-    </appender>
 
     <appender name="ALL-SCRAPED" class="ch.qos.logback.core.FileAppender">
-        <file>all_scraped.json</file>
+        <file>out/grab_oclc_all.json</file>
         <param name="immediateFlush" value="true"/>
         <append>true</append>
         <encoder>
-            <pattern>\n%msg,\n</pattern>
+            <pattern>%msg</pattern>
         </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>all_scraped.%i.log.zip</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>3</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>7MB</maxFileSize>
+        </triggeringPolicy>
     </appender>
 
-    <appender name="LOGFILE" class="ch.qos.logback.core.FileAppender">
-        <file>olx.log</file>
-        <append>false</append>
-        <param name="immediateFlush" value="true"/>
-        <encoder>
-            <pattern>%level %logger{0} %date - %msg%n</pattern>
-        </encoder>
-    </appender>
-
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <param name="immediateFlush" value="true"/>
-        <encoder>
-            <pattern>%level %logger{0} %date - %msg%n</pattern>
-        </encoder>
-    </appender>
 
     <appender name="SIFT" class="ch.qos.logback.classic.sift.SiftingAppender">
         <!-- in the absence of the class attribute, it is assumed that the
@@ -43,26 +28,54 @@
         </discriminator>
         <sift>
             <appender name="FILE-${userid}" class="ch.qos.logback.core.FileAppender">
-                <file>${savePath}.log</file>
-                <append>true</append>
-                <!--<append>false</append>-->
-                <!--<param name="immediateFlush" value="true"/>-->
-                <param name="immediateFlush" value="false"/>
+                <file>out/${savePath}</file>
+                <!--<append>true</append>-->
+                <append>false</append>
+                <param name="immediateFlush" value="true"/>
+                <!--<param name="immediateFlush" value="false"/>-->
                 <layout class="ch.qos.logback.classic.PatternLayout">
-                    <pattern>\n%msg,\n</pattern>
+                    <pattern>%msg</pattern>
                 </layout>
             </appender>
         </sift>
     </appender>
+    <!---->
+    <!---->
+    <appender name="LOGFILE" class="ch.qos.logback.core.FileAppender">
+        <append>true</append>
+        <param name="immediateFlush" value="true"/>
+        <encoder>
+            <pattern>%level %logger{0} %date - %msg%n</pattern>
+        </encoder>
+        <file>out/grab-oclc.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>grab-oclc.%i.log.zip</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>3</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>5MB</maxFileSize>
+        </triggeringPolicy>
+    </appender>
 
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <param name="immediateFlush" value="true"/>
+        <encoder>
+            <pattern>%level %date{"HH:mm:ss,SSSXXX"}: %msg%n</pattern>
+        </encoder>
+    </appender>
+    <!---->
+    <!---->
     <logger name="SCRAP" level="INFO">
-        <appender-ref ref="SCRAPED" />
         <appender-ref ref="ALL-SCRAPED" />
         <appender-ref ref="SIFT" />
     </logger>
 
+    <logger name="INFO" level="DEBUG">
+        <appender-ref ref="STDOUT" />
+    </logger>
+
     <root name="ROOT" level="INFO">
         <appender-ref ref="LOGFILE" />
-        <appender-ref ref="STDOUT" />
     </root>
 </configuration>
