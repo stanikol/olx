@@ -2,6 +2,3 @@
 .DS_Store
 target/*
 .idea/*
-.idea/
-".idea"/*
-".idea"/
