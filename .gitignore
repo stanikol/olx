@@ -1,4 +1,4 @@
 # Created by .ignore support plugin (hsz.mobi)
 .DS_Store
-.idea/
-target/
+/.idea/
+/target/
