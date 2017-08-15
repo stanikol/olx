@@ -1,4 +1,4 @@
-# Grabber for advertisement from [www.olx.ua](www.olx.ua) 
+# Advertisement's Downloader (Grabber) from site [www.olx.ua](www.olx.ua) 
 
 Aim of this little toy project is to create a simple tool to download (grab) advertisements from [www.olx.ua](www.olx.ua).
 Both advertisements' text and phone numbers.  
@@ -35,9 +35,10 @@ This app relies on tremendous open source projects. Here's a few of them.
 The code is licensed under [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 
-# Граббер объявлений с [www.olx.ua](www.olx.ua) 
+# Скачиватель объявлений (Граббер) с сайта [www.olx.ua](www.olx.ua) 
 
-Этот игрушечный проект является инструментом для скачивания объявлений с сайта [www.olx.ua](www.olx.ua) (объявлений вместе с номерами телефонов).
+Этот игрушечный проект является инструментом для скачивания объявлений с 
+сайта [www.olx.ua](www.olx.ua) (объявлений вместе с номерами телефонов).
 
 ## Инсталаяция
     (1) Загрузите и установите SBT по ссылке http://www.scala-sbt.org/
