@@ -1,7 +1,7 @@
 # Grabber for advertisement from [www.olx.ua](www.olx.ua) 
 
-Aim of this little toy project is to create a simple tool to download (grab) both 
-advertisements text and phone numbers from [www.olx.ua](www.olx.ua).  
+Aim of this little toy project is to create a simple tool to download (grab) advertisements from [www.olx.ua](www.olx.ua).
+Both advertisements' text and phone numbers.  
 
 
 ## Installation
@@ -15,7 +15,7 @@ advertisements text and phone numbers from [www.olx.ua](www.olx.ua).
     
 ## Running the app
 
-Just copy-paste from  your initial query url from site (www.olx.ua) into URl input 
+To download advertisements from [www.olx.ua](www.olx.ua) just copy-paste from  your initial query url from site (www.olx.ua) into URl input 
 box, set number of ads to download and press "GO" button, and in several seconds you'll start to receive 
 data from www.olx.ua in JSON format. Note that data is streamed back to you, this means that you will get requested 
 ads not all at once, but in chunks. So wait for a while to get all your data downloaded.
@@ -37,7 +37,7 @@ The code is licensed under [Apache License v2.0](http://www.apache.org/licenses/
 
 # Граббер объявлений с [www.olx.ua](www.olx.ua) 
 
-Этот игрушечный проект является инструментом для скачивания с сайта [www.olx.ua](www.olx.ua) объявлений вместе с номерами телефонов.
+Этот игрушечный проект является инструментом для скачивания объявлений с сайта [www.olx.ua](www.olx.ua) (объявлений вместе с номерами телефонов).
 
 ## Инсталаяция
     (1) Загрузите и установите SBT по ссылке http://www.scala-sbt.org/
@@ -45,3 +45,12 @@ The code is licensed under [Apache License v2.0](http://www.apache.org/licenses/
     (3) В терминале, из папки в которой находятся исходники, запустите команду `sbt run`
     (4) Подождите, пока система обновиться и загрузит требуемые библиотеки.
     (5) В окне Вашего броузера откройте url `http://localhost:8080/`
+    
+## Использование программы
+
+Чтобы скачать объявления с сайта [www.olx.ua](www.olx.ua) просто скопируйте URL из 
+адресной строки в поле URL, укажите требуемое количество объявлений и нажмите кнопуку "GO".
+Через несколько секунд Вы начнете получать объявления вместе с номерами телефонов в формате JSON.
+Обратите внимание, данные поступают ввиде потока, что означает что запрошенные данные будут поступать 
+не все сразу, а по частям, поэтому для получения всех запрошенных данных, ожидайте до полного 
+окончания загрузки.
