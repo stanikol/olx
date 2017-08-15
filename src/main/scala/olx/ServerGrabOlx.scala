@@ -21,6 +21,8 @@ object WebServer extends App with SprayJsonSupport with Directives with DefaultJ
     implicit val orderFormat = jsonFormat2(Order)
     implicit val streamingSupport: EntityStreamingSupport = EntityStreamingSupport.json()
 
+    val jsonContentType = ContentType(MediaTypes.`application/json`.withParams(Map("charset" -> "utf-8")))
+
     val route =
       pathSingleSlash {
         get {
@@ -31,13 +33,13 @@ object WebServer extends App with SprayJsonSupport with Directives with DefaultJ
       path("download.json"){
         post{
           parameters('url.as[String], 'max.as[Int]) { (url, max) =>
-            complete(HttpEntity(ContentTypes.`application/json`, olx.GrabOlx.createDownloadStream(url, max)))
+            complete(HttpEntity(jsonContentType, olx.GrabOlx.createDownloadStream(url, max)))
           } ~
           entity(as[Order]){ order =>
-            complete(HttpEntity(ContentTypes.`application/json`, olx.GrabOlx.createDownloadStream(order.url, order.max)))
+            complete(HttpEntity(jsonContentType, olx.GrabOlx.createDownloadStream(order.url, order.max)))
           } ~
           formFields('url, 'max.as[Int]){(url, max) =>
-            complete(HttpEntity(ContentTypes.`application/json`, olx.GrabOlx.createDownloadStream(url, max)))
+            complete(HttpEntity(jsonContentType, olx.GrabOlx.createDownloadStream(url, max)))
 
           }
         }
