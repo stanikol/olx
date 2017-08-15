@@ -19,6 +19,7 @@ To download advertisements from [www.olx.ua](www.olx.ua) just copy-paste from  y
 box, set number of ads to download and press "GO" button, and in several seconds you'll start to receive 
 data from www.olx.ua in JSON format. Note that data is streamed back to you, this means that you will get requested 
 ads not all at once, but in chunks. So wait for a while to get all your data downloaded.
+
 Feel free also to send POST requests to http://localhost:8080/ to get back stream of JSON data. 
 Parameters for requests are `url` - url from www.olx.ua, and `max` - nuber of ads to download.
 You can send these params with POST reqests as JSON, form data  or path params.
@@ -58,6 +59,7 @@ The code is licensed under [Apache License v2.0](http://www.apache.org/licenses/
 Обратите внимание, данные поступают ввиде потока, что означает что запрошенные данные будут поступать 
 не все сразу, а по частям, поэтому для получения всех запрошенных данных, ожидайте до полного 
 окончания загрузки.
+
 Посылая POST запросы http://localhost:8080/ с параметрами url и max получаете в ответ поток с JSON.
 Эти параметры можно посылать в теле запроса как JSON или form data, или через url, (?) как параметры пути. 
  
