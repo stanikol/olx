@@ -122,7 +122,7 @@ object GrabOlx {
   }
   case object PrettyJSON extends ResultEncoding {
     val header = ByteString("[\n")
-    val footer = ByteString("\n]")
+    val footer = ByteString("]")
     def encode(d: Map[String, String]) = ByteString(d.toJson.prettyPrint+",\n")
   }
 
