@@ -15,7 +15,7 @@ import scala.io.StdIn
 object WebServer extends App with SprayJsonSupport with Directives with DefaultJsonProtocol{
     final case class Order(url:String, max: Int)
 
-    implicit val system = ActorSystem("my-system")
+    implicit val system = ActorSystem("grab-olx")
     implicit val materializer = ActorMaterializer()
     implicit val executionContext = system.dispatcher
     implicit val orderFormat = jsonFormat2(Order)
