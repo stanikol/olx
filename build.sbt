@@ -1,6 +1,6 @@
 name := "olx"
 
-version := "1.0 "
+version := "1.0.0-RC3"
 
 scalaVersion := "2.11.7"
 
@@ -19,4 +19,4 @@ libraryDependencies ++= Seq(
 )
 
 
-//enablePlugins(JavaAppPackaging)
+enablePlugins(JavaAppPackaging)

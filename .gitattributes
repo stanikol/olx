@@ -1,2 +1,2 @@
-static/* linguist-vendored
-*.rb linguist-language=Scala
+resources/* linguist-vendored
+*.scala linguist-language=Scala
