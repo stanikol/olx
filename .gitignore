@@ -2,3 +2,4 @@
 .DS_Store
 target/*
 .idea/*
+/save-to-git
