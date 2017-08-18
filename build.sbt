@@ -1,6 +1,6 @@
 name := "olx"
 
-version := "1.0.0-RC3"
+version := "0.2.2"
 
 scalaVersion := "2.11.7"
 
