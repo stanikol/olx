@@ -3,3 +3,7 @@
 target/*
 .idea/*
 /save-to-git
+/src/main/scala/ria/
+.idea/
+project/target/streams/compile/compileIncSetup/
+target/

@@ -12,10 +12,10 @@ import spray.json.DefaultJsonProtocol
 
 import scala.io.StdIn
 
-object WebServer extends App with SprayJsonSupport with Directives with DefaultJsonProtocol{
+object OlxGrabServer extends App with SprayJsonSupport with Directives with DefaultJsonProtocol{
     final case class Order(url:String, max: Int, format: String)
 
-    implicit val system = ActorSystem("grab-olx-actor-system")
+    implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
     implicit val executionContext = system.dispatcher
     implicit val orderFormat = jsonFormat3(Order)

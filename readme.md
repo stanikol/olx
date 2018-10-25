@@ -1,6 +1,6 @@
 # Advertisement's and phone numbers Parser (Grabber, Downloader) from site [www.olx.ua](www.olx.ua) 
 
-Aim of this little toy project is to create a simple microservice to download (grab) advertisements from [www.olx.ua](www.olx.ua).
+Aim of this little project is to create a simple microservice to download (grab) advertisements from [www.olx.ua](www.olx.ua).
 Both advertisements' text and phone numbers.  
 
 
@@ -42,7 +42,7 @@ The code is licensed under [Apache License v2.0](http://www.apache.org/licenses/
 
 # Парсер (Граббер, Скачиватель) объявлений и номеров телефонов с сайта [www.olx.ua](www.olx.ua) 
 
-Этот игрушечный проект является микросервисосом для скачивания объявлений с 
+Этот проект является микросервисосом для скачивания объявлений с 
 сайта [www.olx.ua](www.olx.ua) (объявлений вместе с номерами телефонов).
 
 ## Инсталаяция

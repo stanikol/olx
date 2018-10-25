@@ -22,13 +22,16 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 object GrabOlx {
+
   def downloadAdvertisementsHref(uri: String)(implicit mat: ActorMaterializer, actorSystem: ActorSystem, ec: ExecutionContext): Future[Option[(String, List[String])]] = {
     if(uri.isEmpty) Future.successful(None)
     else for {
         response <- Http().singleRequest(HttpRequest(uri = uri))
+//        _= Thread.sleep(1000)
         html <- Unmarshal(response.entity).to[String]
         doc = Jsoup.parse(html)
         links = doc.select(".detailsLink").map{_.attr("href")}.toList
+        _ = println(s"Found ${links.length} links. Url `$uri`.")
         nextPage = Try(doc.select(".pageNextPrev").last().attr("href")).getOrElse("")
         res = if (links.nonEmpty) Some((nextPage, links)) else None
       } yield res
@@ -52,7 +55,7 @@ object GrabOlx {
 
   def downloadAdvertisements(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext) = {
     val counter = new AtomicLong(0)
-    Flow[String].mapAsync(10){ uri =>
+    Flow[String].mapAsync(Config.numberOfDownloadThreads){ uri =>
       for {
         response <- Http().singleRequest(HttpRequest(uri = uri))
         _ = println(s"Opening advertisement at $uri ${counter.incrementAndGet()}")
@@ -91,7 +94,7 @@ object GrabOlx {
   }
 
   def downloadPhones(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext) =
-    Flow[(Map[String, String], Cookie, String, String)].mapAsync(10){ case (data, cookie, phoneToken, usrid) =>
+    Flow[(Map[String, String], Cookie, String, String)].mapAsync(Config.numberOfDownloadThreads){ case (data, cookie, phoneToken, usrid) =>
       val phonesUri = s"https://www.olx.ua/ajax/misc/contact/phone/$usrid/?pt=${phoneToken}"
       val phoneReq = HttpRequest(uri = phonesUri).withHeaders(cookie)
       for{
@@ -137,6 +140,7 @@ object GrabOlx {
       .via(downloadAdvertisements)
       .via(downloadPhones)
       .via(Flow[Map[String, String]].map(encoding.encode))
+    //
     Source.combine(
       Source.single(encoding.header),
       advertisements,
