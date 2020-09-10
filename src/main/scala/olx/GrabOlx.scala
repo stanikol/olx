@@ -5,22 +5,20 @@ import java.util.concurrent.atomic.AtomicLong
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookie, HttpCookiePair}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Concat, Flow, Source}
 import akka.util.ByteString
-import com.janschulte.akvokolekta.StreamAdditions._
 import org.joda.time.DateTime
 import org.jsoup.Jsoup
-import spray.json.DefaultJsonProtocol._
-import spray.json._
 
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
-
+import spray.json._
+import DefaultJsonProtocol._
 object GrabOlx {
 
   def downloadAdvertisementsHref(uri: String)(implicit mat: ActorMaterializer, actorSystem: ActorSystem, ec: ExecutionContext): Future[Option[(String, List[String])]] = {
@@ -49,11 +47,11 @@ object GrabOlx {
     Try("""https?://.*ID(.*?)\.html.*""".r.findFirstMatchIn(url).get.group(1)).toOption.getOrElse("")
 
   private def parsePhones(responseBody: String) = {
-    val extractPhonesReg = """([\d\+\(][\d\s\-\(\)]+\d)""".r
+    val extractPhonesReg = """([\d+\([\d\s\-\()+\d)""".r
     extractPhonesReg.findAllIn(responseBody).matchData.mkString(", ")
   }
 
-  def downloadAdvertisements(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext) = {
+  def downloadAdvertisements(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext): Flow[String, (Map[String, String], Cookie, String, String), NotUsed] = {
     val counter = new AtomicLong(0)
     Flow[String].mapAsync(Config.numberOfDownloadThreads){ uri =>
       for {
@@ -62,13 +60,13 @@ object GrabOlx {
         responseBody <- Unmarshal(response.entity).to[String]
         soup = Jsoup.parse(responseBody)
         usrid = parseUserID(uri)
-        siteid = Try("""(?:Номер объявления\:\s*)(\d+)""".r.findFirstMatchIn(soup.select("span:matches((Добавлено|Опубликовано с мобильного))").head.text()).get.group(1)).toOption.getOrElse("")
+        siteid = Try("""(?:Номер объявления:\s*)(\d+)""".r.findFirstMatchIn(soup.select("span:matches((Добавлено|Опубликовано с мобильного))").head.text()).get.group(1)).toOption.getOrElse("")
         //
         phoneToken = getPhoneToken(responseBody)
         cookies = getCookies(response).map {
-          case HttpCookie(name, value, _, _, _, _, _, _, _) if name.equals("pt") =>
+          case HttpCookie(name, _, _, _, _, _, _, _, _) if name.equals("pt") =>
             HttpCookiePair(name, phoneToken)
-          case x@HttpCookie(name, value, _, _, _, _, _, _, _) =>
+          case HttpCookie(name, value, _, _, _, _, _, _, _) =>
             HttpCookiePair(name, value)
         }
         //
@@ -93,15 +91,21 @@ object GrabOlx {
     }
   }
 
-  def downloadPhones(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext) =
+  def downloadPhones(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext): Flow[(Map[String, String], Cookie, String, String), Map[String, String], NotUsed] =
     Flow[(Map[String, String], Cookie, String, String)].mapAsync(Config.numberOfDownloadThreads){ case (data, cookie, phoneToken, usrid) =>
-      val phonesUri = s"https://www.olx.ua/ajax/misc/contact/phone/$usrid/?pt=${phoneToken}"
+      val phonesUri = s"https://www.olx.ua/ajax/misc/contact/phone/$usrid/?pt=$phoneToken"
       val phoneReq = HttpRequest(uri = phonesUri).withHeaders(cookie)
       for{
         response <- Http().singleRequest(phoneReq)
         body <- Unmarshal(response.entity).to[String]
         phones = parsePhones(body)
-        updatedData = if(phones.nonEmpty) data.updated("phones",phones) else data
+        updatedData = if(phones.nonEmpty) {
+          println(s"Downloaded phones for `${data("url")}`: $phones")
+          data.updated("phones",phones)
+        } else {
+          println(s"No phones are downloaded for `${data("url")}`: $phones")
+          data
+        }
       } yield updatedData
 
   }
@@ -119,23 +123,23 @@ object GrabOlx {
     }
   }
   case object JSON extends ResultEncoding{
-    val header = ByteString("[")
-    val footer = ByteString("]")
-    def encode(d: Map[String, String]): ByteString = ByteString(d.toJson.compactPrint+",\n")
+    val header: ByteString = ByteString("")
+    val footer: ByteString = ByteString("")
+    def encode(d: Map[String, String]): ByteString = ByteString(d.toJson.compactPrint+"\n")
   }
   case object PrettyJSON extends ResultEncoding {
-    val header = ByteString("[\n")
-    val footer = ByteString("]")
-    def encode(d: Map[String, String]) = ByteString(d.toJson.prettyPrint+",\n")
+    val header: ByteString = ByteString("[\n")
+    val footer: ByteString = ByteString("]")
+    def encode(d: Map[String, String]): ByteString = ByteString(d.toJson.prettyPrint+",\n")
   }
 
   def createDownloadStream(startLink: String, maxDownloadCount: Int, encoding: ResultEncoding=PrettyJSON)(implicit as: ActorSystem, mat: ActorMaterializer, ec: ExecutionContext)
-    : Source[ByteString, NotUsed] ={
+    : Source[ByteString, _] ={
     println(s"startLink=$startLink maxDownloadCount=$maxDownloadCount")
     val advertisements: Source[ByteString, _] = Source
       .unfoldAsync(startLink)(downloadAdvertisementsHref)
       .mapConcat(identity)
-      .via(Flow[String].deduplicate())
+//      .via(Flow[String].deduplicate())
       .take(maxDownloadCount)
       .via(downloadAdvertisements)
       .via(downloadPhones)
