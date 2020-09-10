@@ -5,5 +5,7 @@ target/*
 /save-to-git
 /src/main/scala/ria/
 .idea/
-project/target/streams/compile/compileIncSetup/
+project/target/
+project/project/
 target/
+tmp/
