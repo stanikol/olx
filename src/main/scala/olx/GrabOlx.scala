@@ -47,7 +47,7 @@ object GrabOlx {
     Try("""https?://.*ID(.*?)\.html.*""".r.findFirstMatchIn(url).get.group(1)).toOption.getOrElse("")
 
   private def parsePhones(responseBody: String) = {
-    val extractPhonesReg = """([\d+\([\d\s\-\()+\d)""".r
+    val extractPhonesReg = """([\d\+\(][\d\s\-\(\)]+\d)""".r
     extractPhonesReg.findAllIn(responseBody).matchData.mkString(", ")
   }
 
@@ -56,7 +56,7 @@ object GrabOlx {
     Flow[String].mapAsync(Config.numberOfDownloadThreads){ uri =>
       for {
         response <- Http().singleRequest(HttpRequest(uri = uri))
-        _ = println(s"Opening advertisement at $uri ${counter.incrementAndGet()}")
+        _ = println(s"Opening  $uri ${counter.incrementAndGet()} ...")
         responseBody <- Unmarshal(response.entity).to[String]
         soup = Jsoup.parse(responseBody)
         usrid = parseUserID(uri)
@@ -87,6 +87,7 @@ object GrabOlx {
           "viewed" -> Try(soup.select("div.pdingtop10:contains(Просмотры:) > strong").head.text()).toOption.getOrElse(""),
           "downdate" -> DateTime.now().toString("yyyy-MM-dd HHmmss")
         )
+        _ = println(s"OK: reading content from `$uri`.")
       } yield (data, Cookie(cookies), phoneToken, usrid)
     }
   }
@@ -95,15 +96,16 @@ object GrabOlx {
     Flow[(Map[String, String], Cookie, String, String)].mapAsync(Config.numberOfDownloadThreads){ case (data, cookie, phoneToken, usrid) =>
       val phonesUri = s"https://www.olx.ua/ajax/misc/contact/phone/$usrid/?pt=$phoneToken"
       val phoneReq = HttpRequest(uri = phonesUri).withHeaders(cookie)
+      println(s"Downloading phones for `${data("url")}` from `$phonesUri` ...")
       for{
         response <- Http().singleRequest(phoneReq)
         body <- Unmarshal(response.entity).to[String]
         phones = parsePhones(body)
         updatedData = if(phones.nonEmpty) {
-          println(s"Downloaded phones for `${data("url")}`: $phones")
+          println(s"OK: Downloaded phones for `${data("url")}`: $phones")
           data.updated("phones",phones)
         } else {
-          println(s"No phones are downloaded for `${data("url")}`: $phones")
+          println(s"WARN: No phones are downloaded for `${data("url")}`: $phones")
           data
         }
       } yield updatedData
