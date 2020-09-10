@@ -5,7 +5,7 @@ target/*
 /save-to-git
 /src/main/scala/ria/
 .idea/
-project/target/
-project/project/
 target/
-tmp/
+/tmp/
+project/project/
+/project/target/
