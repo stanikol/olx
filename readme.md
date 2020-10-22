@@ -1,29 +1,58 @@
-# Advertisement's and phone numbers Parser (Grabber, Downloader) from site [www.olx.ua](www.olx.ua) 
+# Scraper for classified advertisements and phone numbers from site [www.olx.ua](www.olx.ua) 
+This application downloads classified ads and phone numbers from [www.olx.ua](www.olx.ua)  and saves them to MongoDB.
+It's capable of scraping huge number of ads and phones within very short time. 
+Speed depends on quantity and quality of proxies you are using. You can also use direct (no proxy) connection.  
+Number of requests running in parallel can be easily configured.   
 
-Aim of this little project is to create a simple microservice to download (grab) advertisements from [www.olx.ua](www.olx.ua).
-Both advertisements' text and phone numbers.  
 
+## Installation and running
+1. Download & install Scala Build Tool from [http://www.scala-sbt.org/]
+2. Download the source code. Run ` git clone https://github.com/stanikol/olx `
+3. In terminal go to the folder you have downloaded source code in, then run `sbt buildOlx`.
+4. Wait for a while till sbt downloads all the libraries needed and compiles the sources. This may some time. 
+5. Go to the newly created './bin' folder `cd bin`  and run `java -jar olx.jar`
+6. Then in your browser open url `http://localhost:8080/` 
 
-## Installation
-
-    (1) Download SBT from http://www.scala-sbt.org/
-    (2) Download source code (git clone https://github.com/stanikol/olx)
-    (3) In terminal from folder (which you have dowloaded source code in) issue `sbt run` command.
-    (4) Wait for a while till sbt downloads all the libraries needed.
-    (5) Than in your browser open url `http://localhost:8080/`
+## Configuration
+All configuration is in `olx.conf`. See it for further details.
+    
+Brief list commands for Mac users
+```
+$ brew install sbt
+$ git clone https://github.com/stanikol/olx
+$ cd olx
+$ sbt buildOlx
+$ cd bin
+$ java -jar olx.jar
+```
 
     
 ## Running the app
-
-To download advertisements from [www.olx.ua](www.olx.ua) just copy-paste from  your initial query url from site (www.olx.ua) into URl input 
+To download advertisements from [www.olx.ua](www.olx.ua) just copy-paste query url from the [site](www.olx.ua) into URl input 
 box, set number of ads to download and press "GO" button, and in several seconds you'll start to receive 
-data from www.olx.ua in JSON format. Note that data is streamed back to you, this means that you will get requested 
-ads not all at once, but in chunks. So wait for a while to get all your data downloaded.
+data from www.olx.ua in JSON format. 
+Note that data is streamed back to you, this means that you will get requested ads not all at once, but in chunks. 
+So wait for a while to get all your data downloaded.
 
 ## Micro-service
-Feel free also to send POST requests to http://localhost:8080/ to get back stream of JSON data. 
-Parameters for requests are `url` - url from www.olx.ua, and `max` - nuber of ads to download.
-You can send these params with POST reqests as JSON, form data  or path params.
+You can also send POST requests to http://localhost:8080/download to get back stream of JSON data. 
+Parameters are: 
+    olxUrl - OLX search URL
+    max - max number of advertisements to download
+    collection - Mongo collection name
+
+You can send these params with POST requests in JSON, as form data or as path params.
+```
+curl -i -X POST \
+   -H "Content-Type:application/json" \
+   -d \
+'{      
+    "olxUrl": "https://www.olx.ua/nedvizhimost/kvartiry-komnaty/odessa/?currency=USD",
+    "max": 4,
+    "collection": "olx-odesa-flats"
+}
+' 'http://localhost:8080/download'
+```
 
 
 ## Technology

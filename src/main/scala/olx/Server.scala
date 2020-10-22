@@ -1,6 +1,6 @@
 package olx
 
-import akka.actor.ActorSystem
+import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.common.{
   EntityStreamingSupport,
@@ -8,10 +8,12 @@ import akka.http.scaladsl.common.{
 }
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives
-import akka.stream.ActorMaterializer
-import spray.json.DefaultJsonProtocol
+import akka.http.scaladsl.server.{Directives, Route}
+import olx.scrap.{Scrapper, StateActor}
+import reactivemongo.api.AsyncDriver
+import spray.json.{DefaultJsonProtocol, PrettyPrinter}
 
+import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.io.StdIn
 
 object Server
@@ -20,21 +22,16 @@ object Server
     with Directives
     with DefaultJsonProtocol {
 
-  final case class Order(url: String, max: Int)
+  implicit val globalState: ActorSystem[StateActor.Request] =
+    akka.actor.typed.ActorSystem(StateActor(), "stateActor")
+  implicit val executionContext: ExecutionContextExecutor =
+    concurrent.ExecutionContext.global
+  implicit val printer: PrettyPrinter.type = PrettyPrinter
+  implicit val jsonStreamingSupport: JsonEntityStreamingSupport = EntityStreamingSupport.json()
 
-  val jsonContentType = ContentType(
-    MediaTypes.`application/json`.withParams(Map("charset" -> "utf-8"))
-  )
+  val mongoDriver: AsyncDriver = AsyncDriver()
 
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
-  implicit val executionContext = system.dispatcher
-  implicit val orderFormat = jsonFormat2(Order)
-  implicit val streamingSupport: EntityStreamingSupport =
-    EntityStreamingSupport.json()
-  implicit val jsonStreamingSupport: JsonEntityStreamingSupport =
-    EntityStreamingSupport.json()
-  val route =
+  val route: Route =
     pathSingleSlash {
       get {
         val html = scala.io.Source
@@ -43,23 +40,28 @@ object Server
         complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, html))
       }
     } ~
-      path("download.json") {
+      path("download") {
         post {
-          parameters('url.as[String], 'max.as[Int], 'format.?("json")) {
-            (url, max, format) =>
-              complete(olx.GrabOlx.createDownloadStream(url, max))
-          } ~
-            entity(as[Order]) { order =>
-              complete(olx.GrabOlx.createDownloadStream(order.url, order.max))
+          parameters("olxUrl".as[String], "max".as[Int], "collection")
+            .as(Order.apply _) { order =>
+              complete(Scrapper.createDownloadStream(order, mongoDriver))
             } ~
-            formFields('url, 'max.as[Int], 'format.?("json")) {
-              (url, max, format) =>
-                complete(olx.GrabOlx.createDownloadStream(url, max))
+            entity(as[Order]) { order =>
+              complete(scrap.Scrapper.createDownloadStream(order, mongoDriver))
+            } ~
+//            formFields("olxUrl", "max".actorSystem[Int], "url".optional, "database".optional, "collection".optional).actorSystem(Order.apply) {
+            formFields("olxUrl", "max".as[Int], "collection")
+              .as(Order.apply _) { order =>
+                complete(
+                  scrap.Scrapper.createDownloadStream(order, mongoDriver)
+                )
 
-            }
+              }
         }
       }
-  val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
+
+  val bindingFuture: Future[Http.ServerBinding] =
+    Http().newServerAt("localhost", 8080).bindFlow(route)
 
   println(
     s"Сервер запущен http://localhost:8080/\nНажмите RETURN чтобы прекратить работу..."
@@ -67,6 +69,7 @@ object Server
   StdIn.readLine()
   bindingFuture
     .flatMap(_.unbind())
-    .onComplete(_ => system.terminate())
+    .flatMap(_ => mongoDriver.close())
+    .onComplete(_ => globalState.terminate())
 
 }
