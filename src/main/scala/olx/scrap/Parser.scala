@@ -105,12 +105,12 @@ object Parser {
         .select(".offer-details__item")
         .asScala
         .toList
-        .map(
-          doc =>
-            doc
-              .select(".offer-details__name")
-              .text() -> doc.select(".offer-details__value").text()
-        )
+        .map { doc =>
+          val k = doc.select(".offer-details__name").text()
+          val v = doc.select(".offer-details__value").text()
+          k -> v
+        }
+        .filter{ case (k, v) => k.nonEmpty && v.nonEmpty }
         .toMap[String, String]
     }.getOrElse(Map.empty[String, String])
     //        log.info(s"OK: reading content from `$uri`.")
