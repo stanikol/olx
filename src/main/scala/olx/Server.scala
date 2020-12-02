@@ -42,20 +42,18 @@ object Server
     } ~
       path("download") {
         post {
-          parameters("olxUrl".as[String], "max".as[Int], "collection")
+          parameters("olxUrl".as[String], "max".as[Int], "collection".as[String], "parsePhones".as[Boolean].optional)
             .as(Order.apply _) { order =>
               complete(Scrapper.createDownloadStream(order, mongoDriver))
             } ~
             entity(as[Order]) { order =>
               complete(scrap.Scrapper.createDownloadStream(order, mongoDriver))
             } ~
-//            formFields("olxUrl", "max".actorSystem[Int], "url".optional, "database".optional, "collection".optional).actorSystem(Order.apply) {
-            formFields("olxUrl", "max".as[Int], "collection")
+            formFields("olxUrl".as[String], "max".as[Int], "collection".as[String], "parsePhones".as[Boolean].optional)
               .as(Order.apply _) { order =>
                 complete(
                   scrap.Scrapper.createDownloadStream(order, mongoDriver)
                 )
-
               }
         }
       }

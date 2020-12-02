@@ -1,4 +1,4 @@
-# Scraper for classified advertisements and phone numbers from site [www.olx.ua](www.olx.ua) 
+# Parser / Scraper for classified advertisements and phone numbers from site [www.olx.ua](www.olx.ua) 
 This application downloads classified ads and phone numbers from [www.olx.ua](www.olx.ua)  and saves them to MongoDB.
 It's capable of scraping huge number of ads and phones within very short time. 
 Speed depends on quantity and quality of proxies you are using. You can also use direct (no proxy) connection.  
@@ -12,6 +12,8 @@ Number of requests running in parallel can be easily configured.
 4. Wait for a while till sbt downloads all the libraries needed and compiles the sources. This may some time. 
 5. Go to the newly created './bin' folder `cd bin`  and run `java -jar olx.jar`
 6. Then in your browser open url `http://localhost:8080/` 
+7. Configuration settings are in `olx.conf` file. If no `olx.conf` is found in the current dir then defaults will be used.
+
 
 ## Configuration
 All configuration is in `olx.conf`. See it for further details.
@@ -40,6 +42,7 @@ Parameters are:
     olxUrl - OLX search URL
     max - max number of advertisements to download
     collection - Mongo collection name
+    parsePhones - When `true` parse and save phones
 
 You can send these params with POST requests in JSON, as form data or as path params.
 ```
@@ -49,7 +52,8 @@ curl -i -X POST \
 '{      
     "olxUrl": "https://www.olx.ua/nedvizhimost/kvartiry-komnaty/odessa/?currency=USD",
     "max": 4,
-    "collection": "olx-odesa-flats"
+    "collection": "olx-odesa-flats",
+    "parsePhones": true
 }
 ' 'http://localhost:8080/download'
 ```

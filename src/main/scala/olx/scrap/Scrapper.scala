@@ -32,7 +32,12 @@ object Scrapper {
             .via(Mongo.filterSavedUrls(order, mongoCollection))
             .take(order.max)
             .via(downloadAdvertisements)
-            .via(downloadPhones)
+            .via{
+              if(order.parsePhones.getOrElse(false))
+                downloadPhones
+              else
+                Flow[(Map[String, String], Cookie, String)].map(_._1)
+            }
             .mapAsyncUnordered(1)(Mongo.saveToMongo(order, mongoCollection))
             .map(_.removed("html"))
             .map(_.toJson)
