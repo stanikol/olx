@@ -9,11 +9,12 @@ Number of requests running in parallel can be easily configured.
 1. Download & install Scala Build Tool from [http://www.scala-sbt.org/](http://www.scala-sbt.org/)
 2. Download the source code. Run ` git clone https://github.com/stanikol/olx `
 3. In terminal go to the folder you have downloaded source code in, then run `sbt buildOlx`.
-4. Wait for a while till sbt downloads all the libraries needed and compiles the sources. This may some time. 
+4. Wait for a while till sbt downloads all the libraries needed and compiles the sources. This may take some time. 
 5. Download & install MongoDB [https://docs.mongodb.com/manual/administration/install-community/](https://docs.mongodb.com/manual/administration/install-community/)
 6. Create mongodb database and run mongo. The simplest way is to run commands below:
-   ```$ mkdir olx 
-      $ mongod -dbpath olx  
+   ```
+   $ mkdir olx 
+   $ mongod -dbpath olx  
    ```
    If you use another name for your mongodb database (not `olx`), please change `mongo.db` entry in config file `olx.conf` located in `bin` folder.
 7. Go to the newly created './bin' folder `cd bin`  and run `java -jar olx.jar`
@@ -30,6 +31,7 @@ $ brew install sbt
 $ git clone https://github.com/stanikol/olx
 $ cd olx
 $ sbt buildOlx
+$ brew install mongodb-community
 $ mkdir olx 
 $ mongod -dbpath olx 
 $ cd bin
@@ -87,19 +89,20 @@ The code is licensed under [Apache License v2.0](http://www.apache.org/licenses/
 сайта [www.olx.ua](www.olx.ua) (объявлений вместе с номерами телефонов).
 
 ## Инсталаяция
-    (1) Загрузите и установите SBT по ссылке [http://www.scala-sbt.org/]
-    (2) Загрузите исходный код этого проекта ` git clone https://github.com/stanikol/olx `
-    (3) В терминале, из папки в которой находятся исходники, запустите команду `sbt buildOlx`
-    (4) Подождите, пока система обновиться и загрузит требуемые библиотеки.
-    (5) Загрузите и установите MongoDB [https://docs.mongodb.com/manual/administration/install-community/]
-    (6) Запустите MongoDB, создав базу с именем `olx`. Например исполнив следующие команды:
-        ``` $ mkdir olx 
-            $ mongod -dbpath olx  
-        ```
-        Если Вы хотите испльзовать другое имя для базы данных (не `olx`), внесите изменения в параметр `mongo.db` в файле конфигурации `olx.conf` который расположен в папке `bin`.
-    (7) Перейдите в папку './bin'  ( `cd bin` )  и запустите сервис с помощю комманды `java -jar olx.jar`
-    (8) В окне Вашего броузера откройте url `http://localhost:8080/`
-    (9) Файл с настройками `olx.conf` должен находится в текущей папке. Если `olx.conf` не найден в текущей папке используются настройки по умолчению.
+1 Загрузите и установите SBT по ссылке [http://www.scala-sbt.org/]
+2 Загрузите исходный код этого проекта ` git clone https://github.com/stanikol/olx `
+3 В терминале, из папки в которой находятся исходники, запустите команду `sbt buildOlx`
+4 Подождите, пока система обновиться и загрузит требуемые библиотеки.
+5 Загрузите и установите MongoDB [https://docs.mongodb.com/manual/administration/install-community/]
+6 Запустите MongoDB, создав базу с именем `olx`. Например исполнив следующие команды:
+``` 
+$ mkdir olx 
+$ mongod -dbpath olx  
+```
+  Если Вы хотите испльзовать другое имя для базы данных (не `olx`), внесите изменения в параметр `mongo.db` в файле конфигурации `olx.conf` который расположен в папке `bin`.
+7 Перейдите в папку './bin'  ( `cd bin` )  и запустите сервис с помощю комманды `java -jar olx.jar`
+8 В окне Вашего броузера откройте url `http://localhost:8080/`
+9 Файл с настройками `olx.conf` должен находится в текущей папке. Если `olx.conf` не найден в текущей папке используются настройки по умолчению.
     
 ## Использование программы
 
