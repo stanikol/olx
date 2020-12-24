@@ -92,7 +92,7 @@ The code is licensed under [Apache License v2.0](http://www.apache.org/licenses/
     (3) В терминале, из папки в которой находятся исходники, запустите команду `sbt buildOlx`
     (4) Подождите, пока система обновиться и загрузит требуемые библиотеки.
     (5) Загрузите и установите MongoDB [https://docs.mongodb.com/manual/administration/install-community/]
-    (6) Запустите MongoDB, создав базу с имененм `olx`. Например исполнив следующие комманды:
+    (6) Запустите MongoDB, создав базу с именем `olx`. Например исполнив следующие команды:
         ``` $ mkdir olx 
             $ mongod -dbpath olx  
         ```
