@@ -1,11 +1,13 @@
 # Created by .ignore support plugin (hsz.mobi)
 .DS_Store
-target/*
+.bloop/*
+.bsp/*
 .idea/*
+.idea/
 /save-to-git
 /src/main/scala/ria/
-.idea/
 target/
+target/*
 /tmp/
 project/project/
 /project/target/

@@ -1,0 +1,44 @@
+version: '2.1'
+
+services:
+  app:
+    image: 'olx:latest'
+    build:
+      dockerfile: ./docker/OLX-APP.Dockerfile
+      context: ..
+    container_name: olx-app
+    ports:
+      - "8080:8080"
+      - "5005:5005"
+    depends_on:
+      webdriver:
+        condition: service_healthy
+      h2:
+        condition: service_started
+
+  webdriver:
+    image: 'selenium/standalone-firefox:99.0.1'
+    container_name: olx-wd
+    shm_size: 3gb
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    healthcheck:
+      test: exit 0
+      timeout: 30s
+      interval: 2s
+
+  h2:
+    image: olx-db:latest
+    container_name: olx-db
+    build:
+      dockerfile: OLX-DB.Dockerfile
+      context: .
+    volumes:
+      - ../db:/olx/db
+    environment:
+      DATA_DIR: /olx/db
+      H2_OPTIONS: "-ifNotExists"
+    ports:
+      - "8081:8081"
+      - "1521:1521"

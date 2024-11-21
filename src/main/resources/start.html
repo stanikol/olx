@@ -1,0 +1,51 @@
+<html lang="uk-UA">
+<head>
+    <meta charset="utf-8"/>
+    <title>Граббер olx.ua</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+
+</head>
+
+<body>
+<div class="container">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="">
+            <a class="btn btn-outline-primary" href="/olx">OLX</a>
+            <a class="btn btn-outline-secondary" href="/olx/run">Активні закачки</a>
+            <a class="btn btn-outline-primary" href="/olx/db">База даних</a>
+        </div>
+    </nav>
+
+
+    <h3>Оберить параметри пощуку у вікні ніжче та натиснить: "Start"</h3>
+    <form method="POST" action="/olx/run">
+        <div class="row">
+            <label for="name" class="col-md-1 col-form-label">Назва</label>
+            <div class="col-md-11">
+                <input type="text" name="name" id="name"
+                       class="form-control"/><br>
+            </div>
+        </div>
+        <div class="row">
+            <label for="count" class="col-md-1 col-form-label">Кількість об'яв</label>
+            <div class="col-md-2">
+                <input type="number" name="count"
+                       id="count" value="10"
+                       class="col-md-1 form-control"/><br>
+            </div>
+            <!--            <label for="url" class="col-md-1 col-form-label">URL</label>-->
+            <div class="col-md-8">
+                <input type="hidden" name="url" id="url"
+                       class="form-control"/>
+                <input class="btn btn-primary" type="submit" value="Start"/>
+            </div>
+    </form>
+</div>
+<iframe src="http://localhost:7900/?autoconnect=1&resize=remote&view_clip=0&password=secret"
+        width="99%" height="99%" scrolling="yes"></iframe>
+</div>
+</body>
+
+</html>

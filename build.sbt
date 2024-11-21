@@ -1,58 +1,52 @@
-import java.nio.file.Paths
+val Http4sVersion = "0.23.29"
+val CirceVersion = "0.14.9"
+val MunitVersion = "1.0.2"
+val LogbackVersion = "1.5.6"
+val MunitCatsEffectVersion = "2.0.0"
+val scala3Version = "3.4.1"
+val http4sVersion = "0.23.29"
 
-import sbt._
-import sbt.Keys._
 
-lazy val akkaHttpVersion = "10.2.0"
-lazy val akkaVersion    = "2.6.9"
-
-val buildOlx: TaskKey[Unit] = taskKey[Unit]("Build and copy to ./bin dir")
-
-lazy val root = (project in file(".")).
-  settings(
-    inThisBuild(List(
-      organization    := "snc",
-      scalaVersion    := "2.13.3"
-    )),
-    name := "olx3",
-    version := "0.3.0",
+lazy val root = (project in file("."))
+  .settings(
+    organization := "stanikol",
+    name := "olx",
+    version := "0.4.0",
+    scalaVersion := scala3Version,
+//    scalacOptions ++= Seq("-Xfatal-warnings", "-Werror"),
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-http"                % akkaHttpVersion,
-      "com.typesafe.akka" %% "akka-http-spray-json"     % akkaHttpVersion,
-      "com.typesafe.akka" %% "akka-actor-typed"         % akkaVersion,
-      "com.typesafe.akka" %% "akka-stream"              % akkaVersion,
-      "ch.qos.logback"    % "logback-classic"           % "1.2.3",
-      "com.typesafe.akka" %% "akka-http-testkit"        % akkaHttpVersion % Test,
-      "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion     % Test,
-      "org.scalatest"     %% "scalatest"                % "3.0.8"         % Test
-    )
-    , // https://mvnrepository.com/artifact/org.jsoup/jsoup
-    libraryDependencies += "org.jsoup" % "jsoup" % "1.13.1"
-    ,libraryDependencies ++= Seq(
-      "org.reactivemongo" %% "reactivemongo" % "1.0.0",
-      "org.reactivemongo" %% "reactivemongo-play-json" % "0.20.12-play29"
-    )
-    , assemblyJarName in assembly := s"${name.value}.jar"
-    , mainClass in assembly := Some("olx.Server")
-    , assemblyMergeStrategy in assembly := {
-//      case PathList("javax", "servlet", xs @ _*)         => MergeStrategy.first
-      case pl @ PathList(ps @ _*) if ps.last == "module-info.class" =>
-        println(s"Strategy first was ran on $pl $ps !")
-        MergeStrategy.first
-//      case "application.conf"                            => MergeStrategy.concat
-//      case "unwanted.txt"                                => MergeStrategy.discard
-      case x =>
-        val oldStrategy = (assemblyMergeStrategy in assembly).value
-        oldStrategy(x)
-    }
-    , buildOlx := {
-      val assmbly: sbt.File = assembly.value
-      IO.createDirectory(new File("bin"))
-      IO.copyFile(assmbly, new File("./bin/olx.jar"))
-      IO.copyFile(new File("src/main/resources/application.conf"), new File("./bin/olx.conf"))
-      IO.copyFile(new File("proxies.tsv"), new File("./bin/proxies.tsv"))
-      val bin = new File(baseDirectory.value, "bin").getAbsolutePath
-      println(s"Olx parser is copied to $bin")
+      "org.http4s"      %% "http4s-ember-server" % Http4sVersion,
+      "org.http4s"      %% "http4s-ember-client" % Http4sVersion,
+      "org.http4s"      %% "http4s-circe"        % Http4sVersion,
+      "org.http4s"      %% "http4s-dsl"          % Http4sVersion,
+      "org.scalameta"   %% "munit"               % MunitVersion           % Test,
+      "org.typelevel"   %% "munit-cats-effect"   % MunitCatsEffectVersion % Test
+      // "ch.qos.logback"  %  "logback-classic"     % LogbackVersion         % Runtime,
+    ),
+    assembly / assemblyMergeStrategy := {
+      case "module-info.class" => MergeStrategy.discard
+//      case x => (assembly / assemblyMergeStrategy).value.apply(x)
+      case x => MergeStrategy.first //TODO
     }
   )
+  .settings(
+      // https://mvnrepository.com/artifact/org.seleniumhq.selenium/selenium-remote-driver
+      libraryDependencies += "org.seleniumhq.selenium" % "selenium-remote-driver" % "4.26.0",
+      // https://mvnrepository.com/artifact/org.seleniumhq.selenium/selenium-java
+      libraryDependencies += "org.seleniumhq.selenium" % "selenium-java" % "4.26.0",
+      libraryDependencies += "co.fs2" %% "fs2-core" % "3.11.0",
+      libraryDependencies += "org.typelevel" %% "cats-effect" % "3.5.6",
+      libraryDependencies += "org.wvlet.airframe" %% "airframe-log" % "24.11.0",
+      libraryDependencies += "org.slf4j" % "slf4j-jdk14" % "2.0.16",
+      libraryDependencies +=
+        "com.github.joonasvali.naturalmouse" % "naturalmouse" % "2.0.3",
+      
+      // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
+      libraryDependencies += "org.slf4j" % "slf4j-api" % "2.0.16",
+      // https://mvnrepository.com/artifact/org.apache.commons/commons-csv
+      libraryDependencies += "org.apache.commons" % "commons-csv" % "1.12.0",
+      // https://mvnrepository.com/artifact/org.jsoup/jsoup
+      libraryDependencies += "org.jsoup" % "jsoup" % "1.18.1",
+      libraryDependencies += "org.tpolecat" %% "doobie-h2" % "1.0.0-RC6"
 
+  )
