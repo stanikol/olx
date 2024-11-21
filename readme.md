@@ -2,6 +2,7 @@
 This application downloads classified ads and phone numbers from [www.olx.ua](www.olx.ua)  and saves them to [H2 Database](https://www.h2database.com/html/main.html).
 It's capable of scraping huge number of ads and phones within very short time.
 
+[Документація Українською](/README-uk.md)
 
 ## Installation and running
 1. Install [Docker](https://www.docker.com/) with docker-compose.
