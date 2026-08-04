@@ -6,7 +6,7 @@ import org.openqa.selenium.firefox.FirefoxOptions
 import org.openqa.selenium.remote.RemoteWebDriver
 import wvlet.log.{LogLevel, LogSupport}
 
-import java.net.URL
+import java.net.URI
 
 object WD extends LogSupport {
 
@@ -24,7 +24,7 @@ object WD extends LogSupport {
       firefoxOptions.setProxy(seleniumProxy)
     }
     firefoxOptions.setPageLoadStrategy(PageLoadStrategy.EAGER)
-    val remoteAddress = new URL("http://webdriver:4444")
+    val remoteAddress = URI.create("http://webdriver:4444").toURL
 //    val remoteAddress = new URL("http://localhost:4444") //Change to run locally
     val wd = new RemoteWebDriver(remoteAddress, firefoxOptions)
     info(s"mkWebDriver: [OK] New WebDriver is successfully created (remoteAddress=${remoteAddress.getRef}).")
